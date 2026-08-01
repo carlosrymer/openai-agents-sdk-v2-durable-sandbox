@@ -1,0 +1,390 @@
+{
+  "experiment": "durable_execution",
+  "model": "gemini/gemini-3.6-flash",
+  "sandbox_image": "python:3.11-slim",
+  "design": {
+    "phase_a_turns": 3,
+    "total_turns": 6,
+    "harness_process_killed": true,
+    "compute_container_killed": true,
+    "snapshot_backend": "LocalSnapshot (tarball on host disk)"
+  },
+  "aggregate": {
+    "trials_run": 4,
+    "trials_succeeded": 4,
+    "resume_seconds": {
+      "n": 4,
+      "mean": 3.085,
+      "median": 2.755,
+      "min": 2.02,
+      "max": 4.81,
+      "values": [
+        2.02,
+        2.75,
+        2.76,
+        4.81
+      ]
+    },
+    "checkpoint_seconds": {
+      "n": 4,
+      "mean": 0.56,
+      "median": 0.5,
+      "min": 0.42,
+      "max": 0.82,
+      "values": [
+        0.42,
+        0.48,
+        0.52,
+        0.82
+      ]
+    },
+    "tokens_spent_before_kill": {
+      "n": 4,
+      "mean": 37622.5,
+      "median": 37010.0,
+      "min": 36590,
+      "max": 39880,
+      "values": [
+        36590,
+        36940,
+        37080,
+        39880
+      ]
+    },
+    "tokens_spent_after_resume": {
+      "n": 4,
+      "mean": 51304.0,
+      "median": 50863.0,
+      "min": 50372,
+      "max": 53118,
+      "values": [
+        50372,
+        50813,
+        50913,
+        53118
+      ]
+    },
+    "workspace_preserved_every_trial": true,
+    "container_changed_every_trial": true,
+    "turns_repeated_total": 0,
+    "tokens_respent_total": 0,
+    "final_tests_passed_every_trial": true,
+    "independent_check_passed_every_trial": true
+  },
+  "representative_trial": {
+    "trial": "1",
+    "turns": [
+      {
+        "turn": 0,
+        "prompt": "Create /workspace/roman.py with a function to_roman(n) that converts integers 1-10 to Roman numerals, and /workspace/tes",
+        "wall_clock_s": 4.81,
+        "usage": {
+          "input_tokens": 9727,
+          "output_tokens": 661,
+          "total_tokens": 10388,
+          "requests": 2
+        },
+        "final_output": "Created `/workspace/roman.py` and `/workspace/test_roman.py`.\n\n**Test Output**\n```\nAll tests passed successfully!\n```"
+      },
+      {
+        "turn": 1,
+        "prompt": "Extend to_roman in /workspace/roman.py to correctly handle all integers 1-3999 (including 4, 9, 40, 90, 400, 900 subtrac",
+        "wall_clock_s": 5.55,
+        "usage": {
+          "input_tokens": 11093,
+          "output_tokens": 919,
+          "total_tokens": 12012,
+          "requests": 2
+        },
+        "final_output": "Updated `/workspace/roman.py` and `/workspace/test_roman.py`.\n\n**Test Output**\n```\nAll tests passed successfully!\n```"
+      },
+      {
+        "turn": 2,
+        "prompt": "Add from_roman(s) to /workspace/roman.py converting a Roman numeral string back to an integer. Add a roundtrip test asse",
+        "wall_clock_s": 14.13,
+        "usage": {
+          "input_tokens": 14479,
+          "output_tokens": 3001,
+          "total_tokens": 17480,
+          "requests": 2
+        },
+        "final_output": "Added `from_roman(s)` to `/workspace/roman.py` and the 1..3999 roundtrip test to `/workspace/test_roman.py`.\n\n**Test Output**\n```\nAll tests passed successfully!\n```"
+      },
+      {
+        "turn": 3,
+        "prompt": "Make from_roman(s) raise ValueError on invalid input (empty string, bad characters like 'ABC', and malformed repeats lik",
+        "wall_clock_s": 6.59,
+        "usage": {
+          "input_tokens": 14308,
+          "output_tokens": 986,
+          "total_tokens": 15294,
+          "requests": 2
+        },
+        "final_output": "Updated `/workspace/roman.py` to validate input string syntax and raised `ValueError` for invalid cases like empty strings, non-Roman characters, and invalid repetitions. Updated `/workspace/test_roman.py` with asserts covering these invalid inputs.\n\n**Test Output**\n```\nAll tests passed successfully!\n```"
+      },
+      {
+        "turn": 4,
+        "prompt": "Add a main() to /workspace/roman.py with a CLI: `python3 roman.py to 1987` prints MCMLXXXVII and `python3 roman.py from ",
+        "wall_clock_s": 4.92,
+        "usage": {
+          "input_tokens": 16457,
+          "output_tokens": 911,
+          "total_tokens": 17368,
+          "requests": 2
+        },
+        "final_output": "Added `main()` with CLI support for `to` and `from` in `/workspace/roman.py`.\n\n**CLI Output**\n```\n$ python3 /workspace/roman.py to 1987\nMCMLXXXVII\n\n$ python3 /workspace/roman.py from MCMLXXXVII\n1987\n```"
+      },
+      {
+        "turn": 5,
+        "prompt": "Run the full test suite one final time with python3 /workspace/test_roman.py and report the exact output, then state whe",
+        "wall_clock_s": 2.52,
+        "usage": {
+          "input_tokens": 17652,
+          "output_tokens": 58,
+          "total_tokens": 17710,
+          "requests": 2
+        },
+        "final_output": "**Exact Test Output**\n```\nAll tests passed successfully!\n```\n\nEverything passes."
+      }
+    ],
+    "recovery": {
+      "resume_seconds": 2.76,
+      "checkpoint_seconds": 0.82,
+      "old_container": "e7bc4cd7a4dc",
+      "new_container": "677c1a00dae9",
+      "container_changed": true,
+      "workspace_state_preserved": true,
+      "pre_kill_fingerprint": {
+        "roman.py": {
+          "sha256": "965c5b48c2081291",
+          "bytes": 1206,
+          "exists": true
+        },
+        "test_roman.py": {
+          "sha256": "fe0b91c99c2ce3eb",
+          "bytes": 552,
+          "exists": true
+        }
+      },
+      "post_resume_fingerprint": {
+        "roman.py": {
+          "sha256": "965c5b48c2081291",
+          "bytes": 1206,
+          "exists": true
+        },
+        "test_roman.py": {
+          "sha256": "fe0b91c99c2ce3eb",
+          "bytes": 552,
+          "exists": true
+        }
+      },
+      "turns_repeated_after_resume": 0,
+      "tokens_spent_before_kill": 39880,
+      "tokens_respent_on_recovery": 0,
+      "tokens_spent_after_resume": 50372,
+      "tokens_a_cold_restart_would_respend": 39880
+    },
+    "correctness": {
+      "final_test_exit_code": 0,
+      "final_test_stdout": "All tests passed successfully!\n",
+      "final_test_stderr": "",
+      "independent_roundtrip_check_passed": true
+    },
+    "events": [
+      {
+        "t": 1785600506.4159908,
+        "kind": "phase_a_start",
+        "pid": 13566,
+        "container_id": "e7bc4cd7a4dc"
+      },
+      {
+        "t": 1785600511.2267675,
+        "kind": "turn_complete",
+        "turn": 0,
+        "seconds": 4.81,
+        "total_tokens": 10388
+      },
+      {
+        "t": 1785600516.7733395,
+        "kind": "turn_complete",
+        "turn": 1,
+        "seconds": 5.55,
+        "total_tokens": 12012
+      },
+      {
+        "t": 1785600530.9068031,
+        "kind": "turn_complete",
+        "turn": 2,
+        "seconds": 14.13,
+        "total_tokens": 17480
+      },
+      {
+        "t": 1785600531.1766822,
+        "kind": "pre_kill_fingerprint",
+        "files": {
+          "roman.py": {
+            "sha256": "965c5b48c2081291",
+            "bytes": 1206,
+            "exists": true
+          },
+          "test_roman.py": {
+            "sha256": "fe0b91c99c2ce3eb",
+            "bytes": 552,
+            "exists": true
+          }
+        }
+      },
+      {
+        "t": 1785600531.998816,
+        "kind": "checkpoint_persisted",
+        "seconds": 0.82,
+        "snapshot_dir": "/home/user/builds/openai-agents-sdk-v2-durable-sandbox/.run_state/trial_1/snapshots"
+      },
+      {
+        "t": 1785600531.9997675,
+        "kind": "phase_a_state_written",
+        "path": "/home/user/builds/openai-agents-sdk-v2-durable-sandbox/.run_state/trial_1/durable_state.json",
+        "bytes": 21982
+      },
+      {
+        "t": 1785600533.738609,
+        "kind": "kill_container_begin",
+        "container": "e7bc4cd7a4dc"
+      },
+      {
+        "t": 1785600534.367608,
+        "kind": "kill_container_done",
+        "container": "e7bc4cd7a4dc",
+        "confirmed_gone": true
+      },
+      {
+        "t": 1785600541.2182393,
+        "kind": "phase_b_start",
+        "pid": 1687
+      },
+      {
+        "t": 1785600543.9773061,
+        "kind": "rehydrated",
+        "seconds": 2.76,
+        "old_container": "e7bc4cd7a4dc",
+        "new_container": "677c1a00dae9",
+        "container_changed": true
+      },
+      {
+        "t": 1785600544.2061238,
+        "kind": "post_resume_fingerprint",
+        "files": {
+          "roman.py": {
+            "sha256": "965c5b48c2081291",
+            "bytes": 1206,
+            "exists": true
+          },
+          "test_roman.py": {
+            "sha256": "fe0b91c99c2ce3eb",
+            "bytes": 552,
+            "exists": true
+          }
+        }
+      },
+      {
+        "t": 1785600544.206364,
+        "kind": "state_preserved",
+        "preserved": true
+      },
+      {
+        "t": 1785600550.8005536,
+        "kind": "turn_complete",
+        "turn": 3,
+        "seconds": 6.59,
+        "total_tokens": 15294
+      },
+      {
+        "t": 1785600555.7257116,
+        "kind": "turn_complete",
+        "turn": 4,
+        "seconds": 4.92,
+        "total_tokens": 17368
+      },
+      {
+        "t": 1785600558.2466626,
+        "kind": "turn_complete",
+        "turn": 5,
+        "seconds": 2.52,
+        "total_tokens": 17710
+      },
+      {
+        "t": 1785600558.406039,
+        "kind": "final_verification",
+        "exit_code": 0
+      },
+      {
+        "t": 1785600558.7474542,
+        "kind": "independent_check",
+        "passed": true
+      }
+    ]
+  },
+  "trials": [
+    {
+      "trial": "1",
+      "resume_seconds": 2.76,
+      "checkpoint_seconds": 0.82,
+      "workspace_state_preserved": true,
+      "container_changed": true,
+      "old_container": "e7bc4cd7a4dc",
+      "new_container": "677c1a00dae9",
+      "turns_repeated_after_resume": 0,
+      "tokens_spent_before_kill": 39880,
+      "tokens_respent_on_recovery": 0,
+      "tokens_spent_after_resume": 50372,
+      "final_test_exit_code": 0,
+      "independent_check_passed": true
+    },
+    {
+      "trial": "2",
+      "resume_seconds": 2.02,
+      "checkpoint_seconds": 0.48,
+      "workspace_state_preserved": true,
+      "container_changed": true,
+      "old_container": "00c1f9d23a92",
+      "new_container": "e1b553f7524a",
+      "turns_repeated_after_resume": 0,
+      "tokens_spent_before_kill": 36940,
+      "tokens_respent_on_recovery": 0,
+      "tokens_spent_after_resume": 50913,
+      "final_test_exit_code": 0,
+      "independent_check_passed": true
+    },
+    {
+      "trial": "3",
+      "resume_seconds": 2.75,
+      "checkpoint_seconds": 0.52,
+      "workspace_state_preserved": true,
+      "container_changed": true,
+      "old_container": "39d20f8cfcca",
+      "new_container": "856deff93d78",
+      "turns_repeated_after_resume": 0,
+      "tokens_spent_before_kill": 37080,
+      "tokens_respent_on_recovery": 0,
+      "tokens_spent_after_resume": 50813,
+      "final_test_exit_code": 0,
+      "independent_check_passed": true
+    },
+    {
+      "trial": "4",
+      "resume_seconds": 4.81,
+      "checkpoint_seconds": 0.42,
+      "workspace_state_preserved": true,
+      "container_changed": true,
+      "old_container": "5277ae806de5",
+      "new_container": "89fdc935ca76",
+      "turns_repeated_after_resume": 0,
+      "tokens_spent_before_kill": 36590,
+      "tokens_respent_on_recovery": 0,
+      "tokens_spent_after_resume": 53118,
+      "final_test_exit_code": 0,
+      "independent_check_passed": true
+    }
+  ],
+  "generated_at": "2026-08-01T16:13:13Z"
+}

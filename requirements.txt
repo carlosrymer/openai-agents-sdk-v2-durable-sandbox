@@ -1,0 +1,3 @@
+# The subject under test. The `docker` extra ships DockerSandboxClient; `litellm`
+# provides the non-OpenAI model routing used to drive the agent loop.
+openai-agents[docker,litellm]==0.19.2
