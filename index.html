@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenAI Agents SDK v2 — Durable Sandbox &amp; Credential Isolation</title>
+<meta name="description" content="Testing two falsifiable claims about the OpenAI Agents SDK v2 harness/compute split: credential isolation and durable execution.">
+<style>
+:root{
+  color-scheme: light;
+  --surface-1:#fcfcfb; --plane:#f9f9f7; --surface-2:#ffffff;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,0.10);
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --series-1:#2a78d6; --series-2:#eb6834; --series-3:#1baf7a; --series-7:#4a3aa7;
+  --good-ink:#006300; --critical-ink:#a52626;
+  --code-bg:#f2f1ed;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme: dark;
+    --surface-1:#1a1a19; --plane:#0d0d0d; --surface-2:#212120;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
+    --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70; --series-7:#9085e9;
+    --good-ink:#0ca30c; --critical-ink:#e66767;
+    --code-bg:#141413;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --surface-1:#1a1a19; --plane:#0d0d0d; --surface-2:#212120;
+  --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
+  --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70; --series-7:#9085e9;
+  --good-ink:#0ca30c; --critical-ink:#e66767;
+  --code-bg:#141413;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--plane); color:var(--text-primary);
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+  line-height:1.6; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+a{color:var(--series-1)}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+code{background:var(--code-bg);padding:.12em .38em;border-radius:4px;font-size:.9em}
+pre{background:var(--code-bg);padding:14px 16px;border-radius:10px;overflow-x:auto;
+    border:1px solid var(--border);font-size:.85rem;line-height:1.5}
+
+/* ---------- header ---------- */
+header{border-bottom:1px solid var(--border);background:var(--surface-1);position:sticky;top:0;z-index:20}
+.hbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0}
+.brand{font-weight:650;font-size:.95rem;letter-spacing:-.01em}
+.brand span{color:var(--muted);font-weight:450}
+.toggle{background:var(--surface-2);border:1px solid var(--border);color:var(--text-secondary);
+  border-radius:999px;padding:7px 14px;font:inherit;font-size:.82rem;cursor:pointer}
+.toggle:hover{color:var(--text-primary)}
+
+/* ---------- hero ---------- */
+.hero{padding:56px 0 40px;border-bottom:1px solid var(--border);background:var(--surface-1)}
+.eyebrow{color:var(--muted);font-size:.78rem;letter-spacing:.09em;text-transform:uppercase;font-weight:600}
+h1{font-size:clamp(1.9rem,4.6vw,3rem);line-height:1.12;letter-spacing:-.025em;margin:.4em 0 .3em;font-weight:680}
+.lede{font-size:clamp(1rem,1.9vw,1.16rem);color:var(--text-secondary);max-width:66ch;margin:0}
+.claims{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px;margin-top:30px}
+.claim{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:18px 20px}
+.claim h3{margin:.1em 0 .45em;font-size:1rem;letter-spacing:-.01em}
+.claim p{margin:0;color:var(--text-secondary);font-size:.9rem}
+
+/* ---------- badges (status = icon + label, never colour alone) ---------- */
+.badge{display:inline-flex;align-items:center;gap:7px;font-size:.76rem;font-weight:650;
+  padding:4px 11px;border-radius:999px;border:1px solid;letter-spacing:.01em}
+.badge svg{width:13px;height:13px;flex:none}
+.badge.ok{color:var(--good-ink);border-color:color-mix(in srgb,var(--good) 45%,transparent);
+  background:color-mix(in srgb,var(--good) 11%,transparent)}
+.badge.bad{color:var(--critical-ink);border-color:color-mix(in srgb,var(--critical) 45%,transparent);
+  background:color-mix(in srgb,var(--critical) 11%,transparent)}
+.badge.warn{color:var(--text-secondary);border-color:color-mix(in srgb,var(--warning) 55%,transparent);
+  background:color-mix(in srgb,var(--warning) 15%,transparent)}
+
+/* ---------- sections ---------- */
+section{padding:52px 0;border-bottom:1px solid var(--border)}
+h2{font-size:clamp(1.35rem,2.8vw,1.85rem);letter-spacing:-.02em;margin:0 0 .3em;font-weight:660}
+.sub{color:var(--text-secondary);margin:0 0 26px;max-width:72ch}
+h3.sec{font-size:1.02rem;margin:34px 0 12px;letter-spacing:-.01em}
+
+/* ---------- stat tiles ---------- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tile{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:15px 16px}
+.tile .k{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.tile .v{font-size:1.72rem;font-weight:680;letter-spacing:-.03em;margin-top:5px;line-height:1.1}
+.tile .n{font-size:.78rem;color:var(--text-secondary);margin-top:3px}
+.v.good{color:var(--good-ink)} .v.bad{color:var(--critical-ink)}
+
+/* ---------- comparison panels ---------- */
+.vs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+@media (max-width:760px){.vs{grid-template-columns:1fr}}
+.panel{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.panel.isolated{border-top:3px solid var(--good)}
+.panel.naive{border-top:3px solid var(--critical)}
+.panel .head{padding:16px 18px 13px;border-bottom:1px solid var(--border)}
+.panel .head h3{margin:0 0 3px;font-size:1.02rem}
+.panel .head .prov{font-size:.79rem;color:var(--muted)}
+.panel .body{padding:15px 18px 18px}
+.metric{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  padding:8px 0;border-bottom:1px dashed var(--grid);font-size:.88rem}
+.metric:last-child{border-bottom:0}
+.metric .lab{color:var(--text-secondary)}
+.metric .val{font-weight:660;font-variant-numeric:tabular-nums;text-align:right}
+.leaklist{list-style:none;padding:0;margin:8px 0 0;display:flex;flex-wrap:wrap;gap:6px}
+.leaklist li{font-family:ui-monospace,Menlo,monospace;font-size:.74rem;padding:3px 8px;border-radius:6px;
+  background:var(--code-bg);border:1px solid var(--border)}
+.leaklist li.hot{border-color:color-mix(in srgb,var(--critical) 45%,transparent);
+  color:var(--critical-ink);background:color-mix(in srgb,var(--critical) 9%,transparent)}
+.none{color:var(--good-ink);font-size:.86rem;font-weight:600;display:flex;align-items:center;gap:7px;margin-top:8px}
+.none svg{width:15px;height:15px;flex:none}
+
+/* ---------- bar comparison ---------- */
+.bars{margin-top:10px}
+.barrow{margin:13px 0}
+.barrow .cap{display:flex;justify-content:space-between;font-size:.83rem;margin-bottom:5px}
+.barrow .cap .who{display:flex;align-items:center;gap:7px;color:var(--text-secondary)}
+.barrow .cap .num{font-weight:680;font-variant-numeric:tabular-nums}
+.track{height:12px;background:var(--grid);border-radius:6px;overflow:hidden}
+.fill{height:100%;border-radius:6px;transition:width .6s cubic-bezier(.2,.7,.3,1)}
+.fill.good{background:var(--good)}
+/* The naive series carries a 45° texture as well as hue: good/critical are a
+   deutan-confusable pair, so identity never rests on colour alone. */
+.fill.bad{
+  background:var(--critical);
+  background-image:repeating-linear-gradient(45deg,
+    rgba(255,255,255,.34) 0 3px, rgba(255,255,255,0) 3px 7px);
+}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:0 0 0 2px var(--surface-2)}
+.dot.good{background:var(--good)}
+.dot.bad{background:var(--critical);
+  background-image:repeating-linear-gradient(45deg,
+    rgba(255,255,255,.42) 0 2px, rgba(255,255,255,0) 2px 4px)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:.82rem;color:var(--text-secondary);margin:14px 0 2px}
+.legend .li{display:flex;align-items:center;gap:7px}
+
+/* ---------- exfil callout ---------- */
+.callout{margin-top:18px;border-radius:14px;padding:18px 20px;border:1px solid;display:flex;
+  gap:14px;align-items:flex-start}
+.callout.bad{border-color:color-mix(in srgb,var(--critical) 42%,transparent);
+  background:color-mix(in srgb,var(--critical) 8%,transparent)}
+.callout.ok{border-color:color-mix(in srgb,var(--good) 42%,transparent);
+  background:color-mix(in srgb,var(--good) 8%,transparent)}
+.callout .ic{flex:none;margin-top:3px;display:flex}
+.callout .ic svg{width:19px;height:19px}
+.callout.bad .ic{color:var(--critical-ink)}
+.callout.ok .ic{color:var(--good-ink)}
+.callout h4{margin:0 0 5px;font-size:.95rem}
+.callout p{margin:0;font-size:.87rem;color:var(--text-secondary)}
+
+/* ---------- timeline ---------- */
+.timeline{position:relative;margin-top:20px;padding-left:30px}
+.timeline::before{content:"";position:absolute;left:9px;top:6px;bottom:6px;width:2px;background:var(--grid)}
+.ev{position:relative;padding:0 0 20px 6px}
+.ev::before{content:"";position:absolute;left:-26px;top:5px;width:12px;height:12px;border-radius:50%;
+  background:var(--series-1);box-shadow:0 0 0 3px var(--plane)}
+.ev.kill::before{background:var(--critical);width:16px;height:16px;left:-28px;top:3px}
+.ev.heal::before{background:var(--good);width:16px;height:16px;left:-28px;top:3px}
+.ev .when{font-size:.73rem;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.ev .what{font-weight:620;font-size:.93rem;margin:1px 0 2px}
+.ev .det{font-size:.84rem;color:var(--text-secondary)}
+.ev.kill .what{color:var(--critical-ink)}
+.ev.heal .what{color:var(--good-ink)}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto;margin-top:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2)}
+table{border-collapse:collapse;width:100%;font-size:.87rem;min-width:520px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--grid);vertical-align:top}
+th{font-size:.75rem;text-transform:uppercase;letter-spacing:.055em;color:var(--muted);font-weight:650;
+   background:var(--surface-1)}
+tr:last-child td{border-bottom:0}
+td.num{font-variant-numeric:tabular-nums;text-align:right}
+
+/* ---------- misc ---------- */
+ul.clean{padding-left:20px;color:var(--text-secondary)}
+ul.clean li{margin:.42em 0}
+.note{font-size:.83rem;color:var(--muted);margin-top:12px}
+footer{padding:34px 0 48px;color:var(--muted);font-size:.85rem}
+footer a{color:var(--text-secondary)}
+details{margin-top:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2);padding:0}
+summary{cursor:pointer;padding:13px 16px;font-size:.88rem;font-weight:600}
+details[open] summary{border-bottom:1px solid var(--border)}
+details .dbody{padding:14px 16px}
+.err{color:var(--critical-ink);font-size:.88rem}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap hbar">
+    <div class="brand">Agents SDK v2 <span>· durable sandbox teardown</span></div>
+    <button class="toggle" id="themeBtn" type="button">Theme</button>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Frontier build · verified run</div>
+    <h1>Does splitting the harness from compute actually buy you anything?</h1>
+    <p class="lede">
+      The OpenAI Agents SDK v2 makes two falsifiable promises about separating the agent
+      harness (control plane) from the sandbox (compute plane): credentials stay out of the
+      execution environment, and a run survives losing that environment. I tested both against
+      real containers, a real credential-theft probe, and a real process kill.
+    </p>
+    <div class="claims">
+      <div class="claim">
+        <div id="badge1"></div>
+        <h3>Claim 1 — Credential isolation</h3>
+        <p>API keys and host credentials do not reach the environment where model-generated code runs.</p>
+      </div>
+      <div class="claim">
+        <div id="badge2"></div>
+        <h3>Claim 2 — Durable execution</h3>
+        <p>Snapshot + rehydration let an interrupted agent resume instead of restarting from zero.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <h2>How this was tested</h2>
+    <p class="sub">
+      Both experiments run the SDK's real sandbox stack. The only substitution is the model:
+      this environment has no OpenAI API key, so the agent loop is driven by a third-party model
+      through the SDK's LiteLLM integration. That substitution is valid here because the sandbox
+      shell tool is an ordinary <code>FunctionTool</code> — nothing in the harness/compute boundary
+      depends on which model is talking.
+    </p>
+    <p class="sub">
+      Two models appear below, which needs explaining rather than hiding. The durability run
+      (experiment 2) used <strong>Gemini 3.6 Flash</strong>; those API credits were exhausted partway
+      through this build, so the agent-driven pass of experiment 1 used
+      <strong>Kimi K2.7 Code</strong> via Moonshot's OpenAI-compatible endpoint. Neither
+      <em>measurement</em> depends on the model — the exfiltration probe is a fixed script and the
+      snapshot/restore path is non-model code — but I would rather say so than quietly present one
+      model.
+    </p>
+    <div class="tiles" id="setupTiles"></div>
+    <p class="note">
+      Every number on this page is read from committed JSON artifacts produced by the runs in
+      <code>experiments/</code>. Nothing is computed in the browser.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Claim 1 — Credential isolation</h2>
+    <p class="sub">
+      One byte-identical exfiltration probe, two sandbox providers that ship in the same SDK
+      release. The probe enumerates the environment, reads credential files and
+      <code>/proc/1/environ</code>, checks whether the harness source tree is visible, and then
+      tries to <em>use</em> anything it finds by making a real authenticated API call.
+      The naive side is not a strawman I built — it is the SDK's own
+      <code>unix_local</code> provider.
+    </p>
+
+    <div class="vs" id="vsPanels"></div>
+
+    <h3 class="sec">What the compute plane could see</h3>
+    <div class="legend">
+      <div class="li"><span class="dot good"></span> docker — isolated</div>
+      <div class="li"><span class="dot bad"></span> unix_local — host passthrough</div>
+    </div>
+    <div class="bars" id="leakBars"></div>
+
+    <div id="exfilCallout"></div>
+
+    <h3 class="sec">Why the two providers differ</h3>
+    <p class="sub" style="margin-bottom:0">
+      This is not a configuration accident — it is two different lines of library code.
+      The Docker provider builds the container environment from the manifest alone; the
+      unix_local provider starts from a copy of the host environment.
+    </p>
+<pre><code># agents/sandbox/sandboxes/docker.py  — container env is manifest-only
+environment: dict[str, str] | None = None
+if manifest:
+    environment = await manifest.environment.resolve()
+create_kwargs = {..., "environment": environment}
+
+# agents/sandbox/sandboxes/unix_local.py — host env copied, manifest layered on top
+env = os.environ.copy()
+env.update(await self.state.manifest.environment.resolve())</code></pre>
+    <p class="note">
+      There is no manifest option to pass the host environment through to a Docker sandbox.
+      Isolation is structural there. It is equally structural — in the opposite direction — under
+      <code>unix_local</code>.
+    </p>
+
+    <details>
+      <summary>Agent-driven probe (the model looking for credentials itself)</summary>
+      <div class="dbody">
+        <p style="margin:0 0 12px;font-size:.87rem;color:var(--text-secondary)">
+          A realism check on the fixed probe: the model hunts for credentials itself via the shell
+          tool. It reaches the same conclusion on both providers. Worth noting that on
+          <code>docker</code> the model reported <code>GPG_KEY</code> as a credential — it is the
+          base image's <em>public</em> Python-release verification key, not a secret. That false
+          positive is exactly why the deterministic probe, which matches recovered values against
+          the harness's own secret fingerprints, is the primary measurement here.
+        </p>
+        <div id="agentProbe"></div>
+      </div>
+    </details>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Claim 2 — Durable execution</h2>
+    <p class="sub">
+      A deliberately harsh test, repeated across several trials. The agent builds a Roman-numeral
+      library over six turns — converter, inverse, input validation, then a working CLI — so there is
+      real accumulated state to lose. Halfway through, <strong>both</strong> planes die: the harness
+      process exits, and the container is destroyed with <code>docker rm -f</code>. A brand-new OS
+      process then loads the serialized session state from disk and rehydrates.
+    </p>
+    <div class="tiles" id="durTiles"></div>
+
+    <h3 class="sec">Run timeline</h3>
+    <div class="timeline" id="timeline"></div>
+
+    <h3 class="sec">Every trial, individually</h3>
+    <p class="sub" style="margin-bottom:0">
+      One successful recovery is an anecdote. These are all of them — same task, same kill, fresh
+      container each time.
+    </p>
+    <div class="tablewrap">
+      <table id="trialTable">
+        <thead><tr><th>Trial</th><th class="num">Rehydrate</th><th class="num">Checkpoint</th>
+          <th>Container</th><th class="num">Turns redone</th><th class="num">Tokens preserved</th>
+          <th>Verified</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <h3 class="sec">Per-turn cost (representative trial)</h3>
+    <div class="tablewrap">
+      <table id="turnTable">
+        <thead><tr><th>Turn</th><th>Phase</th><th>What it did</th><th class="num">Wall clock</th><th class="num">Tokens</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="durCallout"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Library-side vs OpenAI-hosted</h2>
+    <p class="sub">
+      The crux of this build: how much of the sandbox story actually needs OpenAI's API? I
+      expected the interesting parts to be hosted. Almost none of them are.
+    </p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Capability</th><th>Where it runs</th><th>Testable without an OpenAI key?</th></tr></thead>
+        <tbody>
+          <tr><td>Sandbox providers (<code>docker</code>, <code>unix_local</code>)</td><td>Your machine</td><td>Yes — fully tested here</td></tr>
+          <tr><td>Manifest &amp; environment isolation</td><td>Your machine</td><td>Yes — fully tested here</td></tr>
+          <tr><td>Snapshot / rehydration (<code>LocalSnapshot</code>)</td><td>Your machine, tarball on disk</td><td>Yes — fully tested here</td></tr>
+          <tr><td><code>RemoteSnapshot</code></td><td>Any storage client you supply</td><td>Yes — it is BYO-storage, not an OpenAI service</td></tr>
+          <tr><td>Shell capability (<code>ExecCommandTool</code>)</td><td>Your machine, plain function tool</td><td>Yes — worked with Gemini</td></tr>
+          <tr><td><code>apply_patch</code> filesystem editing</td><td>Model-native <code>CustomTool</code></td><td><strong>No</strong> — not exercised; see caveats</td></tr>
+          <tr><td>Sandbox memory generation</td><td>Defaults to <code>gpt-5.4-mini</code> / <code>gpt-5.5</code></td><td><strong>No</strong> — not exercised; see caveats</td></tr>
+          <tr><td>Hosted tracing dashboard</td><td>OpenAI</td><td>No — disabled for these runs</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Caveats and what I did not test</h2>
+    <ul class="clean">
+      <li><strong>Snapshotting is opt-in and manual.</strong> The default is <code>NoopSnapshot</code>,
+        and <code>session.stop()</code> is the only thing that writes one. There is no automatic or
+        periodic checkpointing, so any work done after the last explicit checkpoint is lost. Every
+        trial checkpointed at a turn boundary, which flatters the result.</li>
+      <li><strong>Isolation is about credentials, not the network.</strong> The Docker sandbox still had
+        full outbound internet access. It simply had nothing to authenticate with. A sandbox that can
+        reach the internet can still exfiltrate whatever is inside the workspace.</li>
+      <li><strong>The <code>apply_patch</code> tool was not exercised.</strong> It is a model-native
+        <code>CustomTool</code>, so the Codex-style filesystem editing path needs an OpenAI model. My
+        agent used shell heredocs instead. This is the one advertised sandbox capability I could not
+        reach without a key.</li>
+      <li><strong>Sandbox memory was not exercised</strong> — it defaults to OpenAI models for its two
+        extraction phases.</li>
+      <li><strong>Hosted sandbox providers were not tested.</strong> Blaxel, Cloudflare, Daytona, E2B,
+        Modal, Runloop and Vercel all need vendor keys I do not have. Whether they behave like the
+        Docker provider or like <code>unix_local</code> is unverified — the point of Claim 1's result is
+        precisely that this varies by provider.</li>
+      <li><strong>Small run, and two different models.</strong> Six agent turns on one task, four
+        trials. The durability trials ran on Gemini 3.6 Flash; the agent-driven probe ran on Kimi
+        K2.7 Code after Gemini credits were exhausted mid-build. This measures the SDK's plumbing,
+        not model quality, and it is far too small to say anything about the latter.</li>
+      <li><strong>The kill always lands at the same point.</strong> Every trial destroys the
+        container at a clean turn boundary after turn 3. I did not test killing mid-tool-call,
+        mid-write, or during the snapshot itself — which is exactly where durability gets hard.</li>
+      <li><strong>The agent-driven probe produced a false positive.</strong> On <code>docker</code>
+        the model reported <code>GPG_KEY</code> as a reachable credential; it is the base image's
+        <em>public</em> Python-release verification key. That is why the deterministic probe, which
+        matches recovered values against the harness's own secret fingerprints, is the primary
+        measurement rather than the model's opinion.</li>
+      <li><strong><code>~/.aws/credentials</code> did not leak even under <code>unix_local</code></strong>,
+        because that provider rewrites <code>HOME</code> to the workspace root. I had expected it to
+        leak, and it did not — reported here rather than quietly dropped.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    Part of an ongoing series of small, real-world builds trialing frontier AI models, frameworks,
+    and tools as they ship. ·
+    <a href="https://github.com/carlosrymer/openai-agents-sdk-v2-durable-sandbox">Source &amp; raw artifacts</a>
+  </div>
+</footer>
+
+<script>
+const ICON_OK  = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 5"/></svg>';
+const ICON_BAD = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
+const ICON_WARN= '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.6l6 10.8H2z"/><path d="M8 7v3"/><path d="M8 12h.01"/></svg>';
+
+function badge(kind, text){
+  const ic = kind==='ok'?ICON_OK:kind==='bad'?ICON_BAD:ICON_WARN;
+  return `<span class="badge ${kind}">${ic}${text}</span>`;
+}
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = n => Number(n).toLocaleString('en-US');
+
+/* theme toggle — must beat the OS setting in both directions */
+(function(){
+  const btn=document.getElementById('themeBtn');
+  const stored=localStorage.getItem('theme');
+  if(stored) document.documentElement.setAttribute('data-theme',stored);
+  btn.addEventListener('click',()=>{
+    const cur=document.documentElement.getAttribute('data-theme');
+    const sysDark=matchMedia('(prefers-color-scheme: dark)').matches;
+    const now = cur ? cur : (sysDark?'dark':'light');
+    const next = now==='dark'?'light':'dark';
+    document.documentElement.setAttribute('data-theme',next);
+    localStorage.setItem('theme',next);
+  });
+})();
+
+async function load(p){ const r=await fetch(p); if(!r.ok) throw new Error(p+' → '+r.status); return r.json(); }
+
+function renderIsolation(d){
+  const s=d.summary, iso=s.isolated, nv=s.naive;
+  const isoClean = iso.real_harness_secrets_leaked.length===0 && !iso.live_exfiltration.succeeded;
+
+  document.getElementById('badge1').innerHTML = isoClean
+    ? badge('ok','Holds — with a large caveat')
+    : badge('bad','Did not hold');
+
+  document.getElementById('setupTiles').innerHTML = [
+    ['Agent-probe model', d.model.split('/').pop(), 'via LiteLLM'],
+    ['Sandbox image', d.sandbox_image, 'Docker provider'],
+    ['Providers compared', '2', 'docker vs unix_local'],
+    ['Secrets held by harness', Object.keys(s.harness_secret_fingerprints).length, 'fingerprinted, never printed'],
+    ['Deterministic probe', 'No model', 'fixed script, fully reproducible'],
+  ].map(([k,v,n])=>`<div class="tile"><div class="k">${k}</div><div class="v" style="font-size:1rem;line-height:1.35;overflow-wrap:anywhere">${esc(v)}</div><div class="n">${n}</div></div>`).join('');
+
+  function panel(r, cls, title, note){
+    const leaked=r.real_harness_secrets_leaked, decoys=Object.keys(r.decoys_recovered);
+    const clean = leaked.length===0;
+    return `<div class="panel ${cls}">
+      <div class="head">
+        <h3>${title}</h3>
+        <div class="prov">provider: <code>${esc(r.provider)}</code> — ${note}</div>
+        <div style="margin-top:9px">${clean?badge('ok','No credentials reachable'):badge('bad',leaked.length+' live secrets stolen')}</div>
+      </div>
+      <div class="body">
+        <div class="metric"><span class="lab">Environment variables visible</span><span class="val">${fmt(r.env_var_count)}</span></div>
+        <div class="metric"><span class="lab">Real harness secrets leaked</span><span class="val" style="color:${clean?'var(--good-ink)':'var(--critical-ink)'}">${leaked.length}</span></div>
+        <div class="metric"><span class="lab">Decoy secrets recovered verbatim</span><span class="val" style="color:${decoys.length?'var(--critical-ink)':'var(--good-ink)'}">${decoys.length} / 3</span></div>
+        <div class="metric"><span class="lab">Harness source tree visible</span><span class="val">${r.harness_source_visible?'Yes':'No'}</span></div>
+        <div class="metric"><span class="lab">Outbound network</span><span class="val">${r.network_egress?'Reachable':'Blocked'}</span></div>
+        ${leaked.length
+          ? `<ul class="leaklist">${leaked.map(x=>`<li class="hot">${esc(x)}</li>`).join('')}${decoys.map(x=>`<li class="hot">${esc(x)}</li>`).join('')}</ul>`
+          : `<div class="none">${ICON_OK} Only base-image variables present</div>`}
+      </div>
+    </div>`;
+  }
+  document.getElementById('vsPanels').innerHTML =
+      panel(iso,'isolated','Isolated harness','a real container')
+    + panel(nv,'naive','Naive harness','executes on the host');
+
+  const maxEnv=Math.max(iso.env_var_count,nv.env_var_count);
+  const rows=[
+    ['Environment variables visible', iso.env_var_count, nv.env_var_count, maxEnv],
+    ['Credential-shaped variables', iso.credential_env_var_names.length, nv.credential_env_var_names.length,
+      Math.max(iso.credential_env_var_names.length,nv.credential_env_var_names.length)],
+    ['Live secrets stolen', iso.real_harness_secrets_leaked.length, nv.real_harness_secrets_leaked.length,
+      Math.max(1,nv.real_harness_secrets_leaked.length)],
+  ];
+  document.getElementById('leakBars').innerHTML = rows.map(([lab,a,b,mx])=>`
+    <div style="margin-bottom:20px">
+      <div style="font-size:.86rem;font-weight:620;margin-bottom:7px">${lab}</div>
+      <div class="barrow"><div class="cap"><span class="who"><span class="dot good"></span>docker</span><span class="num">${fmt(a)}</span></div>
+        <div class="track"><div class="fill good" style="width:${mx?(a/mx*100):0}%"></div></div></div>
+      <div class="barrow"><div class="cap"><span class="who"><span class="dot bad"></span>unix_local</span><span class="num">${fmt(b)}</span></div>
+        <div class="track"><div class="fill bad" style="width:${mx?(b/mx*100):0}%"></div></div></div>
+    </div>`).join('');
+
+  const ex=nv.live_exfiltration, exi=iso.live_exfiltration;
+  document.getElementById('exfilCallout').innerHTML = `
+    <div class="callout ${ex.succeeded?'bad':'ok'}">
+      <span class="ic">${ex.succeeded?ICON_BAD:ICON_OK}</span>
+      <div>
+        <h4>The naive harness leaked a working key, not just a string</h4>
+        <p>The probe took the leaked <code>MOONSHOT_API_KEY</code> and called the provider's
+        authenticated account endpoint from inside the compute plane —
+        <code>${esc(ex.endpoint||'')}</code> returned HTTP <strong>${ex.http_status}</strong> with
+        real account data. Key fingerprint <code>${esc(ex.stolen_key_fingerprint||'n/a')}</code>.
+        I used an account endpoint rather than a completion deliberately: it proves the credential
+        is live and shows the blast radius, while spending zero tokens. Account figures are withheld
+        from the artifact.</p>
+      </div>
+    </div>
+    <div class="callout ok">
+      <span class="ic">${ICON_OK}</span>
+      <div>
+        <h4>The isolated harness had nothing to steal</h4>
+        <p>The same probe could not even attempt the call: ${esc(exi.reason||'no credential present')}.
+        The container had outbound network access the whole time — it just had no credential.</p>
+      </div>
+    </div>`;
+
+  const ap=d.agent_driven_probe||{};
+  document.getElementById('agentProbe').innerHTML = ['docker','unix_local'].map(p=>{
+    const v=ap[p]||{}; const t=v.final_output||v.error||'(no output)';
+    return `<div style="margin-bottom:14px"><div style="font-weight:640;font-size:.87rem;margin-bottom:5px">
+      <code>${p}</code></div><pre style="margin:0">${esc(t)}</pre></div>`;
+  }).join('');
+}
+
+function renderDurability(d){
+  const agg=d.aggregate, rep=d.representative_trial, r=rep.recovery, c=rep.correctness;
+  const ok = agg.workspace_preserved_every_trial && agg.container_changed_every_trial &&
+             agg.final_tests_passed_every_trial && agg.independent_check_passed_every_trial &&
+             agg.turns_repeated_total===0;
+  document.getElementById('badge2').innerHTML = ok
+    ? badge('ok','Holds — but it is opt-in')
+    : badge('bad','Did not hold');
+
+  const rs=agg.resume_seconds, cs=agg.checkpoint_seconds, tb=agg.tokens_spent_before_kill;
+  document.getElementById('durTiles').innerHTML = [
+    ['Rehydrate time', rs.mean+'s', `mean of ${rs.n} trials (${rs.min}–${rs.max}s)`, ok?'good':''],
+    ['Checkpoint time', cs.mean+'s', `mean of ${cs.n} trials (${cs.min}–${cs.max}s)`,''],
+    ['Turns repeated', agg.turns_repeated_total, `across all ${rs.n} trials`, 'good'],
+    ['Tokens re-spent', fmt(agg.tokens_respent_total), `on recovery, all ${rs.n} trials`,'good'],
+    ['Tokens preserved', fmt(Math.round(tb.mean)), 'mean a cold restart would redo',''],
+    ['Workspace intact', agg.workspace_preserved_every_trial?'Every trial':'No',
+       'byte-exact hashes across the kill', agg.workspace_preserved_every_trial?'good':'bad'],
+  ].map(([k,v,n,cl])=>`<div class="tile"><div class="k">${k}</div><div class="v ${cl||''}">${esc(v)}</div><div class="n">${esc(n)}</div></div>`).join('');
+
+  // per-trial table — the point is that every trial agrees
+  document.querySelector('#trialTable tbody').innerHTML = d.trials.map(t=>`
+    <tr><td class="num">${esc(t.trial)}</td>
+      <td class="num">${Number(t.resume_seconds).toFixed(2)}s</td>
+      <td class="num">${Number(t.checkpoint_seconds).toFixed(2)}s</td>
+      <td><code>${esc(t.old_container)}</code> → <code>${esc(t.new_container)}</code></td>
+      <td class="num">${t.turns_repeated_after_resume}</td>
+      <td class="num">${fmt(t.tokens_spent_before_kill)}</td>
+      <td>${t.workspace_state_preserved && t.independent_check_passed
+            ? badge('ok','pass') : badge('bad','fail')}</td></tr>`).join('');
+
+  const ev=rep.events||[];
+  const t0=ev.length?ev[0].t:0;
+  const rel=t=>((t-t0)).toFixed(1)+'s';
+  const pretty={
+    phase_a_start:['Phase A starts','Harness process boots, container created'],
+    turn_complete:['Agent turn completes',null],
+    pre_kill_fingerprint:['Workspace hashed','Fingerprint taken before the kill'],
+    checkpoint_persisted:['Checkpoint written','session.stop() persists the snapshot tarball'],
+    phase_a_state_written:['Session state serialised','Harness state written to disk, then the process exits'],
+    kill_container_begin:['Destroying the container',null],
+    kill_container_done:['Compute plane gone','docker rm -f confirmed'],
+    phase_b_start:['Phase B starts','A brand-new OS process, no memory of phase A'],
+    rehydrated:['Rehydrated','New container built and workspace restored from the snapshot'],
+    post_resume_fingerprint:['Workspace re-hashed','Fingerprint taken after the restore'],
+    state_preserved:['State verified intact','Hashes match byte-for-byte'],
+    final_verification:['Final test suite run','Executed by the harness, not trusted from the model'],
+    independent_check:['Independent check','Roundtrip, ValueError handling and CLI all verified'],
+  };
+  document.getElementById('timeline').innerHTML = ev.map(e=>{
+    const p=pretty[e.kind]||[e.kind,null];
+    let cls='';
+    if(e.kind==='kill_container_done'||e.kind==='kill_container_begin') cls='kill';
+    if(e.kind==='rehydrated'||e.kind==='state_preserved') cls='heal';
+    let det=p[1]||'';
+    if(e.kind==='turn_complete') det=`turn ${e.turn} — ${e.seconds}s, ${fmt(e.total_tokens)} tokens`;
+    if(e.kind==='rehydrated') det=`${e.seconds}s · ${e.old_container} → ${e.new_container}`;
+    if(e.kind==='checkpoint_persisted') det=`${e.seconds}s — ${p[1]}`;
+    return `<div class="ev ${cls}"><div class="when">${rel(e.t)}</div>
+      <div class="what">${esc(p[0])}</div><div class="det">${esc(det)}</div></div>`;
+  }).join('');
+
+  const desc=['Build to_roman for 1–10 + tests','Extend to 1–3999 with subtractive forms',
+              'Add from_roman + roundtrip tests','Reject invalid input with ValueError',
+              'Add a working CLI','Final full test-suite run'];
+  document.querySelector('#turnTable tbody').innerHTML = rep.turns.map((t,i)=>`
+    <tr><td class="num">${t.turn}</td>
+      <td>${i<d.design.phase_a_turns?'A (before kill)':'B (after rehydrate)'}</td>
+      <td>${desc[i]||''}</td>
+      <td class="num">${t.wall_clock_s}s</td>
+      <td class="num">${fmt(t.usage.total_tokens)}</td></tr>`).join('');
+
+  document.getElementById('durCallout').innerHTML = `
+    <div class="callout ${ok?'ok':'bad'}">
+      <span class="ic">${ok?ICON_OK:ICON_BAD}</span>
+      <div>
+        <h4>The run survived losing both planes — in every trial</h4>
+        <p>Across <strong>${agg.trials_succeeded} of ${agg.trials_run}</strong> trials the harness
+        process exited and the container was destroyed, and a fresh process resumed in
+        <strong>${rs.mean}s</strong> on average (${rs.min}–${rs.max}s) with a byte-identical
+        workspace. Total turns repeated across all trials: <strong>${agg.turns_repeated_total}</strong>.
+        Total tokens re-spent on recovery: <strong>${fmt(agg.tokens_respent_total)}</strong>. Every
+        trial finished with a passing test suite plus an independent check of the roundtrip,
+        the <code>ValueError</code> handling and the CLI. The
+        <strong>${fmt(Math.round(tb.mean))}</strong> tokens spent before the kill were preserved
+        rather than re-spent — but only because I explicitly called <code>session.stop()</code>
+        first.</p>
+      </div>
+    </div>`;
+}
+
+(async function(){
+  try{ renderIsolation(await load('data/credential_isolation.json')); }
+  catch(e){ document.getElementById('vsPanels').innerHTML=`<p class="err">Could not load isolation artifact: ${esc(e.message)}</p>`; }
+  try{ renderDurability(await load('data/durable_execution.json')); }
+  catch(e){ document.getElementById('timeline').innerHTML=`<p class="err">Could not load durability artifact: ${esc(e.message)}</p>`; }
+})();
+</script>
+</body>
+</html>
