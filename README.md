@@ -230,9 +230,14 @@ python -m http.server 8000 --directory site
 
 ## Deployed via
 
-GitHub Pages, from `site/`, using GitHub Actions (`actions/deploy-pages`). The workflow copies
-`artifacts/*.json` into `site/data/` at build time so the published page and the committed run
-artifacts can never drift apart.
+GitHub Pages, serving the contents of `site/` from the root of the `gh-pages` branch. `main` holds
+the source, experiments and raw run artifacts; `gh-pages` holds only the built site.
+
+I would rather have deployed via GitHub Actions, and the workflow for it is included at
+[`deploy/github-pages-workflow.yml`](deploy/github-pages-workflow.yml) — but the credential I had
+lacks the `workflow` OAuth scope, so GitHub rejects any push that touches `.github/workflows/**`,
+and the Pages REST API was unavailable too. See [`deploy/README.md`](deploy/README.md) for how the
+site is actually published and how to switch to Actions later.
 
 ---
 Part of an ongoing series of small, real-world builds trialing frontier AI models, frameworks,

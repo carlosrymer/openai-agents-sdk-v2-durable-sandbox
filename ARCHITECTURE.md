@@ -122,14 +122,21 @@ page `fetch()`es them at load and renders. No build step, no framework, no runti
 
 ## Deployment
 
-GitHub Pages via GitHub Actions. Pushes to `main` trigger `.github/workflows/deploy.yml`, which
-enables Pages (`actions/configure-pages` with `enablement: true`), copies `artifacts/*.json` into
-`site/data/`, uploads `site/` as a Pages artifact, and deploys with `actions/deploy-pages`. The
-copy step exists so the published page and the committed artifacts cannot drift apart — the
-artifacts in git are the single source of truth.
+GitHub Pages, serving the contents of `site/` from the **root of the `gh-pages` branch**. `main`
+carries the source, experiments and raw artifacts; `gh-pages` carries only the built site. Republishing
+means copying `artifacts/*.json` into `site/data/` and pushing that tree to `gh-pages` — the procedure
+is written out in `deploy/README.md`.
 
-No secrets are needed by CI: the site is static and all experiment output is pre-committed. Redeploy
-is triggered by any push to `main` or manually via `workflow_dispatch`.
+This is not the deployment I wanted. The intended setup was GitHub Actions —
+`actions/configure-pages` with `enablement: true`, an automatic `artifacts/` → `site/data/` copy so
+the two can never drift, then `actions/deploy-pages`. That workflow is committed at
+`deploy/github-pages-workflow.yml`, outside `.github/`, because the credential available at build
+time lacks the `workflow` OAuth scope: GitHub rejects any push whose diff touches
+`.github/workflows/**`. The Pages REST API was likewise unreachable. Branch-based publishing was the
+option that worked, and the tradeoff is that the artifact copy is a manual step rather than an
+enforced one.
+
+No secrets are needed to deploy: the site is static and all experiment output is pre-committed.
 
 ## Tech choices & rationale
 
