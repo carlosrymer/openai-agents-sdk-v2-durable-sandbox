@@ -294,6 +294,20 @@ env.update(await self.state.manifest.environment.resolve())</code></pre>
       Isolation is structural there. It is equally structural — in the opposite direction — under
       <code>unix_local</code>.
     </p>
+    <div class="callout" style="border-color:color-mix(in srgb,var(--warning) 55%,transparent);
+         background:color-mix(in srgb,var(--warning) 10%,transparent)">
+      <span class="ic" style="color:var(--text-secondary)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.6l6 10.8H2z"/><path d="M8 7v3"/><path d="M8 12h.01"/></svg></span>
+      <div>
+        <h4>A footgun I walked into: the manifest drops a mis-shaped env dict in silence</h4>
+        <p>Declared variables have to be nested under <code>value</code>. Writing
+        <code>Manifest(environment={"TASK_LABEL": "x"})</code> is accepted by pydantic without
+        complaint and then resolves to <code>{}</code> — the variable simply never reaches the
+        sandbox and nothing warns you. My first run had exactly this bug, which is why the probe now
+        explicitly checks that a declared variable <em>does</em> arrive: isolation is only meaningful
+        if the permitted channel actually works. The correct form is
+        <code>Manifest(environment=Environment(value={"TASK_LABEL": "x"}))</code>.</p>
+      </div>
+    </div>
 
     <details>
       <summary>Agent-driven probe (the model looking for credentials itself)</summary>
@@ -486,9 +500,10 @@ function renderIsolation(d){
         <div class="metric"><span class="lab">Decoy secrets recovered verbatim</span><span class="val" style="color:${decoys.length?'var(--critical-ink)':'var(--good-ink)'}">${decoys.length} / 3</span></div>
         <div class="metric"><span class="lab">Harness source tree visible</span><span class="val">${r.harness_source_visible?'Yes':'No'}</span></div>
         <div class="metric"><span class="lab">Outbound network</span><span class="val">${r.network_egress?'Reachable':'Blocked'}</span></div>
+        <div class="metric"><span class="lab">Manifest-declared var arrived</span><span class="val">${r.manifest_declared_var_delivered?'Yes':'No'}</span></div>
         ${leaked.length
           ? `<ul class="leaklist">${leaked.map(x=>`<li class="hot">${esc(x)}</li>`).join('')}${decoys.map(x=>`<li class="hot">${esc(x)}</li>`).join('')}</ul>`
-          : `<div class="none">${ICON_OK} Only base-image variables present</div>`}
+          : `<div class="none">${ICON_OK} Only base-image vars plus the one the manifest declared</div>`}
       </div>
     </div>`;
   }
