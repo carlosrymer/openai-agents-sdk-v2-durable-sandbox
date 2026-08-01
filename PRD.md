@@ -24,8 +24,8 @@ offering very different amounts of protection.
 Engineers evaluating the Agents SDK v2 for work where an agent writes and runs its own code on
 infrastructure that also holds real credentials — CI assistants, data-analysis agents, coding agents
 on developer laptops. Specifically the person who has to answer "if this agent goes rogue or gets
-prompt-injected, what can it actually reach?" and "if the box dies four hours into a run, what do we
-lose?"
+prompt-injected, what can it actually reach?" and "if the box dies four hours into a run, how much
+work is gone?"
 
 Secondarily: anyone deciding *which* sandbox provider to configure, since that turns out to be the
 decision that matters most.
@@ -101,9 +101,10 @@ The build succeeds if it answers both claims with evidence and states its own li
 does.
 
 **Claim 1 — holds, conditionally, and the condition is the headline.** Under the `docker` provider
-the compute plane saw 8 environment variables, zero real harness secrets, and zero of three decoys;
+the compute plane saw 9 environment variables — the 8 the base image ships plus the single one the
+manifest declared — zero real harness secrets, and zero of three decoys;
 the harness source tree was invisible and the exfiltration call could not be attempted for lack of
-any credential. Under `unix_local` the same probe saw 143 variables, leaked 5 real secrets and all 3
+any credential. Under `unix_local` the same probe saw 144 variables, leaked 5 real secrets and all 3
 decoys verbatim, could read the harness source, and **successfully made a real authenticated API
 call from inside the compute plane (HTTP 200), retrieving live account data with the stolen
 key**.
@@ -156,6 +157,10 @@ hardcoding numbers; the page is responsive and dark/light aware; no unfilled pla
 - **`/proc/1/environ` was readable in both providers.** Harmless here, but it is an artifact of how
   these containers start rather than a guarantee, and a different image or entrypoint could change
   that.
+- **A mis-shaped manifest env dict is discarded silently.** `Manifest(environment={...})` type-checks
+  and then resolves to `{}`; declared variables must be nested under `value`. My first run hit this,
+  and the failure mode is nasty precisely because a variable that never arrived is indistinguishable
+  from successful isolation in the results. The probe now asserts the permitted channel works.
 - **Snapshot contents are not encrypted.** The tarball sits in plaintext on host disk. Fine for this
   demo; worth thinking about for a workspace that has handled sensitive data.
 

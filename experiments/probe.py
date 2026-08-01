@@ -35,6 +35,14 @@ report["decoys_recovered"] = {
     k: v for k, v in os.environ.items() if k.startswith("DECOY_")
 }
 
+# 3b. The other half of the isolation claim: variables the manifest DID declare are
+#     supposed to arrive. Isolation is only meaningful if the allowed channel works.
+report["manifest_declared_var"] = {
+    "name": "TASK_LABEL",
+    "present": "TASK_LABEL" in os.environ,
+    "value": os.environ.get("TASK_LABEL"),
+}
+
 # 4. Cloud credential files on disk.
 files = {}
 for p in ("~/.aws/credentials", "~/.config/gcloud/credentials.db", "~/.netrc", "~/.ssh/id_rsa"):

@@ -28,11 +28,17 @@ release. The results are not close:
 
 | | `docker` (isolated) | `unix_local` (naive) |
 |---|---|---|
-| Environment variables visible | **8** | **143** |
+| Environment variables visible | **9** | **144** |
 | Real harness secrets leaked | **0** | **5** |
 | Decoy secrets recovered verbatim | 0 / 3 | **3 / 3** |
 | Harness source tree visible | No | **Yes** |
 | Live authenticated API call with a stolen key | Not possible | **HTTP 200** |
+| Variable the manifest *did* declare | Delivered | Delivered |
+
+Those 9 variables under `docker` are the 8 the base image ships plus the single `TASK_LABEL` the
+manifest declared — so the permitted channel works while the host environment does not cross at all.
+That second row matters: isolation that also broke the legitimate path would not be isolation, it
+would just be breakage.
 
 The last row is the one that matters. Under `unix_local` the probe took the leaked
 `MOONSHOT_API_KEY` and called the provider's authenticated account endpoint from inside the compute
@@ -103,6 +109,14 @@ feature, and you can audit all of it.
 
 I also expected `~/.aws/credentials` to leak under `unix_local`. It did not, because that provider
 rewrites `HOME` to the workspace root. Reporting that because it cuts against my thesis.
+
+And I walked straight into a footgun worth flagging: **the manifest silently discards a mis-shaped
+environment dict.** Declared variables must be nested under `value`, so
+`Manifest(environment={"TASK_LABEL": "x"})` is accepted by pydantic without complaint and then
+resolves to `{}` — the variable never reaches the sandbox and nothing warns you. My first run had
+exactly that bug, and because a *missing* variable looks identical to good isolation, the artifact
+looked fine. That is why the probe now explicitly asserts a declared variable *does* arrive. The
+correct form is `Manifest(environment=Environment(value={"TASK_LABEL": "x"}))`.
 
 ## The use case
 

@@ -172,6 +172,9 @@ def summarize(docker_rep: dict, unix_rep: dict, harness_fps: dict) -> dict:
                 .get("exists")
             ),
             "network_egress": rep.get("network_egress", {}).get("reachable"),
+            "manifest_declared_var_delivered": bool(
+                rep.get("manifest_declared_var", {}).get("present")
+            ),
             "live_exfiltration": rep.get("live_exfiltration", {}),
         }
 

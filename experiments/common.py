@@ -18,6 +18,7 @@ import docker as dockerlib
 
 from agents.extensions.models.litellm_model import LitellmModel
 from agents.sandbox import Manifest
+from agents.sandbox.manifest import Environment
 from agents.sandbox.sandboxes import (
     DockerSandboxClient,
     DockerSandboxClientOptions,
@@ -115,7 +116,10 @@ def manifest_for(root: str) -> Manifest:
     This is the whole security model: whatever is NOT in here should not exist in the
     compute plane. Note there is no way to say "pass through the host environment".
     """
+    # NOTE the nesting. `environment={"TASK_LABEL": ...}` is accepted by pydantic and then
+    # silently resolves to {} — the variable never reaches the sandbox and nothing warns
+    # you. The declared vars have to live under `value`. I got this wrong first time round.
     return Manifest(
         root=root,
-        environment={"TASK_LABEL": "frontier-showcase-sandbox"},
+        environment=Environment(value={"TASK_LABEL": "agents-sdk-v2-sandbox-demo"}),
     )
