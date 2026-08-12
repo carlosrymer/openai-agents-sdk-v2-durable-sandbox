@@ -262,6 +262,14 @@ details .dbody{padding:14px 16px}
       The naive side is not a strawman I built — it is the SDK's own
       <code>unix_local</code> provider.
     </p>
+    <p class="sub">
+      I re-ran this after a live production <code>OPENAI_API_KEY</code> was added to the harness
+      environment — a materially more sensitive credential than anything present the first time.
+      The result held: <code>docker</code> still exposed nothing, and <code>unix_local</code> now
+      leaks the OpenAI key too. Published evidence uses a <code>DECOY_OPENAI_API_KEY</code> canary;
+      the real key appears in the artifacts only as a SHA-256 fingerprint, never as a value, and I
+      deliberately did not make an API call with it from inside the sandbox.
+    </p>
 
     <div class="vs" id="vsPanels"></div>
 
@@ -273,6 +281,21 @@ details .dbody{padding:14px 16px}
     <div class="bars" id="leakBars"></div>
 
     <div id="exfilCallout"></div>
+
+    <div class="callout" style="border-color:color-mix(in srgb,var(--warning) 55%,transparent);
+         background:color-mix(in srgb,var(--warning) 10%,transparent)">
+      <span class="ic" style="color:var(--text-secondary)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.6l6 10.8H2z"/><path d="M8 7v3"/><path d="M8 12h.01"/></svg></span>
+      <div>
+        <h4>A correction to my own earlier numbers</h4>
+        <p>An earlier version of this page counted 5 leaked credentials that included
+        <code>GITHUB_TOKEN</code>, <code>GH_TOKEN</code> and <code>CLOUDSDK_AUTH_ACCESS_TOKEN</code>.
+        Those three are set by this environment to the literal sentinel string
+        <code>proxy-injected</code> — a leaked placeholder is not a stolen credential, and counting
+        them inflated the finding. The probe now classifies sentinel values separately, and the
+        counts above include only credentials that are actually live. The direction of the result
+        never changed, but the magnitude did, so it is flagged rather than quietly edited.</p>
+      </div>
+    </div>
 
     <h3 class="sec">Why the two providers differ</h3>
     <p class="sub" style="margin-bottom:0">
@@ -367,6 +390,48 @@ env.update(await self.state.manifest.environment.resolve())</code></pre>
   </div>
 </section>
 
+
+<section>
+  <div class="wrap">
+    <h2>What a live OpenAI key unlocked</h2>
+    <p class="sub">
+      My first pass had two capabilities marked untested because they are OpenAI-model-native.
+      A production key later became available, so I went back and tested both rather than leaving
+      the caveats standing.
+    </p>
+
+    <h3 class="sec">apply_patch — it works, the model just doesn't want it</h3>
+    <p class="sub">
+      <code>apply_patch</code> is a <code>CustomTool</code>: a model-native tool with a grammar
+      rather than a JSON-schema function tool, which is why no Gemini or Kimi run can reach it.
+      I ran the same edit-heavy task three ways on <code>gpt-5.3-codex</code>, changing one variable
+      at a time.
+    </p>
+    <div class="tablewrap">
+      <table id="apTable">
+        <thead><tr><th>Variant</th><th>Tools available</th><th class="num">apply_patch calls</th>
+          <th class="num">Tokens</th><th>Result</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="apCallout"></div>
+
+    <h3 class="sec">Sandbox memory — the pipeline runs and the memory is specific</h3>
+    <p class="sub">
+      The <code>Memory</code> capability defaults to <code>gpt-5.4-mini</code> for per-rollout
+      extraction and <code>gpt-5.5</code> for consolidation, so it cannot run at all without those
+      models. I gave an agent a task where the obvious command fails and the real one is documented
+      only in the repo, closed the session to trigger generation, then resumed and checked what
+      came back.
+    </p>
+    <div class="tiles" id="memTiles"></div>
+    <details>
+      <summary>What the memory pipeline actually wrote</summary>
+      <div class="dbody" id="memFiles"></div>
+    </details>
+  </div>
+</section>
+
 <section>
   <div class="wrap">
     <h2>Library-side vs OpenAI-hosted</h2>
@@ -383,8 +448,8 @@ env.update(await self.state.manifest.environment.resolve())</code></pre>
           <tr><td>Snapshot / rehydration (<code>LocalSnapshot</code>)</td><td>Your machine, tarball on disk</td><td>Yes — fully tested here</td></tr>
           <tr><td><code>RemoteSnapshot</code></td><td>Any storage client you supply</td><td>Yes — it is BYO-storage, not an OpenAI service</td></tr>
           <tr><td>Shell capability (<code>ExecCommandTool</code>)</td><td>Your machine, plain function tool</td><td>Yes — worked with Gemini</td></tr>
-          <tr><td><code>apply_patch</code> filesystem editing</td><td>Model-native <code>CustomTool</code></td><td><strong>No</strong> — not exercised; see caveats</td></tr>
-          <tr><td>Sandbox memory generation</td><td>Defaults to <code>gpt-5.4-mini</code> / <code>gpt-5.5</code></td><td><strong>No</strong> — not exercised; see caveats</td></tr>
+          <tr><td><code>apply_patch</code> filesystem editing</td><td>Model-native <code>CustomTool</code></td><td><strong>Needs an OpenAI model</strong> — now tested; works when directed</td></tr>
+          <tr><td>Sandbox memory generation</td><td>Defaults to <code>gpt-5.4-mini</code> / <code>gpt-5.5</code></td><td><strong>Needs OpenAI models</strong> — now tested; pipeline runs end to end</td></tr>
           <tr><td>Hosted tracing dashboard</td><td>OpenAI</td><td>No — disabled for these runs</td></tr>
         </tbody>
       </table>
@@ -403,16 +468,18 @@ env.update(await self.state.manifest.environment.resolve())</code></pre>
       <li><strong>Isolation is about credentials, not the network.</strong> The Docker sandbox still had
         full outbound internet access. It simply had nothing to authenticate with. A sandbox that can
         reach the internet can still exfiltrate whatever is inside the workspace.</li>
-      <li><strong>The <code>apply_patch</code> tool was not exercised.</strong> It is a model-native
-        <code>CustomTool</code>, so the Codex-style filesystem editing path needs an OpenAI model. My
-        agent used shell heredocs instead. This is the one advertised sandbox capability I could not
-        reach without a key.</li>
-      <li><strong>Sandbox memory was not exercised</strong> — it defaults to OpenAI models for its two
-        extraction phases.</li>
-      <li><strong>Hosted sandbox providers were not tested.</strong> Blaxel, Cloudflare, Daytona, E2B,
-        Modal, Runloop and Vercel all need vendor keys I do not have. Whether they behave like the
-        Docker provider or like <code>unix_local</code> is unverified — the point of Claim 1's result is
-        precisely that this varies by provider.</li>
+      <li><strong><code>apply_patch</code> and sandbox memory are now tested</strong> — both needed
+        an OpenAI model and both were previously listed here as untested. See the section above.
+        Each result is n=1 per arm on a single task, so they indicate direction rather than
+        settle anything.</li>
+      <li><strong>The durability trials still ran on Gemini, not an OpenAI model.</strong> I did not
+        re-run the 4-trial durability suite after the OpenAI key arrived; snapshot and rehydration
+        are non-model code, so I judged the re-spend unjustified. That means the durability numbers
+        describe a Gemini-driven agent.</li>
+      <li><strong>Hosted sandbox providers remain untested, and an OpenAI key does not change that.</strong>
+        Blaxel, Cloudflare, Daytona, E2B, Modal, Runloop and Vercel each authenticate against their
+        <em>own</em> vendor APIs and need their own keys, none of which are present. This is the gap I
+        would most want closed, because Claim 1's whole result is that isolation varies by provider.</li>
       <li><strong>Small run, and two different models.</strong> Six agent turns on one task, four
         trials. The durability trials ran on Gemini 3.6 Flash; the agent-driven probe ran on Kimi
         K2.7 Code after Gemini credits were exhausted mid-build. This measures the SDK's plumbing,
@@ -651,11 +718,74 @@ function renderDurability(d){
     </div>`;
 }
 
+
+function renderApplyPatch(d){
+  const v=d.variants, c=d.comparison;
+  const order=[["shell_only","Shell only","Shell"],
+               ["filesystem","Filesystem available (free choice)","Filesystem + Shell"],
+               ["filesystem_directed","Filesystem, told to use apply_patch","Filesystem + Shell"]];
+  document.querySelector('#apTable tbody').innerHTML = order.map(([k,label,tools])=>{
+    const r=v[k]; if(!r) return '';
+    return `<tr><td>${label}</td><td><code>${tools}</code></td>
+      <td class="num">${r.apply_patch_calls}</td>
+      <td class="num">${fmt(r.total_tokens)}</td>
+      <td>${r.verified_correct?badge('ok','verified'):badge('bad','failed')}</td></tr>`;
+  }).join('');
+
+  const fs=v.filesystem, sh=v.shell_only, fd=v.filesystem_directed;
+  const overhead=fs.total_tokens-sh.total_tokens;
+  document.getElementById('apCallout').innerHTML = `
+    <div class="callout ${c.apply_patch_used_when_directed?'ok':'bad'}">
+      <span class="ic">${c.apply_patch_used_when_directed?ICON_OK:ICON_BAD}</span>
+      <div>
+        <h4>apply_patch behaves as documented — but costs more than the shell here</h4>
+        <p>Given a free choice, <code>gpt-5.3-codex</code> called <code>apply_patch</code>
+        <strong>zero</strong> times across three edit-heavy turns and reached for the shell every
+        time. I confirmed the tool really was registered and offered, so this is the model
+        declining it, not a wiring bug. Told explicitly to use it, the model made
+        <strong>${fd.apply_patch_calls}</strong> successful <code>apply_patch</code> calls and the
+        result still verified correct — so the tool works.</p>
+        <p style="margin-top:8px">The cost goes the other way from what I expected. Merely
+        <em>offering</em> the filesystem tools cost <strong>${fmt(overhead)}</strong> extra tokens
+        over shell-only for an identical outcome, and actually using <code>apply_patch</code> cost
+        <strong>${(fd.total_tokens/sh.total_tokens).toFixed(1)}×</strong> the shell-only run
+        (${fmt(fd.total_tokens)} vs ${fmt(sh.total_tokens)}). All three produced correct code. This
+        is one task on one model with n=1 per arm, so treat it as a direction, not a measurement.</p>
+      </div>
+    </div>`;
+}
+
+function renderMemory(d){
+  const v=d.verdict, mi=d.memory_injected_into_later_session;
+  document.getElementById('memTiles').innerHTML = [
+    ['Generation ran', v.generation_ran?'Yes':'No', 'triggered by closing the session', v.generation_ran?'good':'bad'],
+    ['Generation time', d.memory_generation_seconds+'s', 'two-phase, on session close', ''],
+    ['Read back later', v.read_back_on_later_session?'Yes':'No', 'injected into a resumed session', v.read_back_on_later_session?'good':'bad'],
+    ['Caught the convention', v.captured_the_project_convention?'Yes':'No', 'the --strict requirement', v.captured_the_project_convention?'good':'bad'],
+    ['Files written', Object.keys(d.memory_files.memories_dir).length, 'under memories/', ''],
+  ].map(([k,val,n,cl])=>`<div class="tile"><div class="k">${k}</div><div class="v ${cl||''}" style="font-size:1.3rem">${esc(val)}</div><div class="n">${esc(n)}</div></div>`).join('');
+
+  const files=d.memory_files.memories_dir;
+  const pick=['memory_summary.md','MEMORY.md'].filter(f=>files[f]);
+  document.getElementById('memFiles').innerHTML =
+    `<p style="margin:0 0 12px;font-size:.87rem;color:var(--text-secondary)">
+      Generated by the SDK's own default models. Reproduced verbatim so the quality can be judged
+      rather than taken on trust — note that it picked up the exact <code>--strict</code>
+      requirement and the exit code, not just a vague summary.</p>` +
+    pick.map(f=>`<div style="margin-bottom:14px">
+      <div style="font-weight:640;font-size:.87rem;margin-bottom:5px"><code>memories/${f}</code></div>
+      <pre style="margin:0">${esc(files[f].slice(0,1600))}</pre></div>`).join('');
+}
+
 (async function(){
   try{ renderIsolation(await load('data/credential_isolation.json')); }
   catch(e){ document.getElementById('vsPanels').innerHTML=`<p class="err">Could not load isolation artifact: ${esc(e.message)}</p>`; }
   try{ renderDurability(await load('data/durable_execution.json')); }
   catch(e){ document.getElementById('timeline').innerHTML=`<p class="err">Could not load durability artifact: ${esc(e.message)}</p>`; }
+  try{ renderApplyPatch(await load('data/apply_patch.json')); }
+  catch(e){ document.getElementById('apCallout').innerHTML=`<p class="err">Could not load apply_patch artifact: ${esc(e.message)}</p>`; }
+  try{ renderMemory(await load('data/sandbox_memory.json')); }
+  catch(e){ document.getElementById('memTiles').innerHTML=`<p class="err">Could not load memory artifact: ${esc(e.message)}</p>`; }
 })();
 </script>
 </body>
