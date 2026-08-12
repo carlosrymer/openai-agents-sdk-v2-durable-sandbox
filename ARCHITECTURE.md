@@ -59,7 +59,7 @@ flowchart TB
 
     dock -->|"probe report"| art["artifacts/*.json"]
     unix -->|"probe report"| art
-    art -->|"copied at build time"| site["site/data/ → GitHub Pages"]
+    art -->|"copied at build time"| site["docs/data/ → GitHub Pages"]
 ```
 
 ## Components
@@ -74,8 +74,8 @@ flowchart TB
 | `experiments/exp4_sandbox_memory.py` | Drives the `Memory` capability through generation on session close and read-back on a resumed session | Python, OpenAI `gpt-5.4-mini` / `gpt-5.5` |
 | `scripts/verify_no_secrets.sh` | Pre-commit gate: scans working tree and full git history for real credential values and provider-shaped patterns | Bash, grep |
 | `artifacts/*.json` | Committed run output — the auditable record and the site's only data source | JSON |
-| `site/index.html` | Single-file static presentation: comparison panels, bar comparison, run timeline, cost tables | HTML/CSS/vanilla JS |
-| `.github/workflows/deploy.yml` | Copies artifacts into `site/data/`, uploads and deploys to Pages | GitHub Actions |
+| `docs/index.html` | Single-file static presentation: comparison panels, bar comparison, run timeline, cost tables | HTML/CSS/vanilla JS |
+| `.github/workflows/deploy.yml` | Copies artifacts into `docs/data/`, uploads and deploys to Pages | GitHub Actions |
 
 ## Data flow
 
@@ -120,18 +120,18 @@ and then an independent assertion covering the full roundtrip for every n in 1�
 `from_roman` raises `ValueError` on `''`, `'ABC'`, `'IIII'` and `'VV'`, and that both CLI directions
 actually work when invoked as subprocesses.
 
-**Presentation.** Both experiments write to `artifacts/`. CI copies them to `site/data/`, and the
+**Presentation.** Both experiments write to `artifacts/`. CI copies them to `docs/data/`, and the
 page `fetch()`es them at load and renders. No build step, no framework, no runtime dependency.
 
 ## Deployment
 
-GitHub Pages, serving the contents of `site/` from the **root of the `gh-pages` branch**. `main`
+GitHub Pages, built from **branch `main`, folder `/docs`**.
 carries the source, experiments and raw artifacts; `gh-pages` carries only the built site. Republishing
-means copying `artifacts/*.json` into `site/data/` and pushing that tree to `gh-pages` — the procedure
+means copying `artifacts/*.json` into `docs/data/` and pushing that tree to `gh-pages` — the procedure
 is written out in `deploy/README.md`.
 
 This is not the deployment I wanted. The intended setup was GitHub Actions —
-`actions/configure-pages` with `enablement: true`, an automatic `artifacts/` → `site/data/` copy so
+`actions/configure-pages` with `enablement: true`, an automatic `artifacts/` → `docs/data/` copy so
 the two can never drift, then `actions/deploy-pages`. That workflow is committed at
 `deploy/github-pages-workflow.yml`, outside `.github/`, because the credential available at build
 time lacks the `workflow` OAuth scope: GitHub rejects any push whose diff touches
@@ -216,5 +216,5 @@ tables. A framework would add a build step and a dependency tree for no benefit,
 - **Single task, six turns, a handful of trials.** Enough to show the recovery behaviour is
   consistent rather than lucky; nowhere near enough for claims about reliability at scale, across
   models, or under adversarial failure timing.
-- **The site duplicates artifacts into `site/data/`.** A copy step in CI rather than a symlink,
+- **The site duplicates artifacts into `docs/data/`.** A copy step in CI rather than a symlink,
   because Pages uploads a directory tree. The duplication is build-time only; git holds one copy.

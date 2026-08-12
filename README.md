@@ -302,8 +302,8 @@ python experiments/exp1_credential_isolation.py
 python experiments/exp2_durable_execution.py driver
 
 # Refresh the site's copy of the artifacts and preview it.
-cp artifacts/*.json site/data/
-python -m http.server 8000 --directory site
+cp artifacts/*.json docs/data/
+python -m http.server 8000 --directory docs
 ```
 
 > **Warning:** experiment 1 deliberately runs a credential-exfiltration probe, and the
@@ -323,14 +323,16 @@ python -m http.server 8000 --directory site
 
 ## Deployed via
 
-GitHub Pages, serving the contents of `site/` from the root of the `gh-pages` branch. `main` holds
-the source, experiments and raw run artifacts; `gh-pages` holds only the built site.
+GitHub Pages, built from **branch `main`, folder `/docs`** — the published site is just the `docs/`
+directory in this repo, with `.nojekyll` so it is served exactly as committed.
 
 I would rather have deployed via GitHub Actions, and the workflow for it is included at
 [`deploy/github-pages-workflow.yml`](deploy/github-pages-workflow.yml) — but the credential I had
-lacks the `workflow` OAuth scope, so GitHub rejects any push that touches `.github/workflows/**`,
-and the Pages REST API was unavailable too. See [`deploy/README.md`](deploy/README.md) for how the
-site is actually published and how to switch to Actions later.
+lacks the `workflow` OAuth scope, so GitHub rejects any push touching `.github/workflows/**`, and
+the Pages REST API is blocked by this environment's proxy. See
+[`deploy/README.md`](deploy/README.md), including the way this bit me: I first published to a
+`gh-pages` branch and the site silently served a stale build for a while, because Pages was pointed
+at `main`/`docs` the whole time.
 
 ---
 Part of an ongoing series of small, real-world builds trialing frontier AI models, frameworks,
