@@ -125,21 +125,32 @@ page `fetch()`es them at load and renders. No build step, no framework, no runti
 
 ## Deployment
 
-GitHub Pages, built from **branch `main`, folder `/docs`**.
-carries the source, experiments and raw artifacts; `gh-pages` carries only the built site. Republishing
-means copying `artifacts/*.json` into `docs/data/` and pushing that tree to `gh-pages` — the procedure
-is written out in `deploy/README.md`.
+GitHub Pages, built from **branch `main`, folder `/docs`**. The published site is simply the
+`docs/` directory in this repo — `docs/index.html` plus the artifacts in `docs/data/` — with a
+`.nojekyll` marker so it is served exactly as committed. Republishing is `cp artifacts/*.json
+docs/data/` followed by a push to `main`. `artifacts/` is the source of truth; `docs/data/` is a
+published copy.
 
-This is not the deployment I wanted. The intended setup was GitHub Actions —
-`actions/configure-pages` with `enablement: true`, an automatic `artifacts/` → `docs/data/` copy so
-the two can never drift, then `actions/deploy-pages`. That workflow is committed at
-`deploy/github-pages-workflow.yml`, outside `.github/`, because the credential available at build
-time lacks the `workflow` OAuth scope: GitHub rejects any push whose diff touches
-`.github/workflows/**`. The Pages REST API was likewise unreachable. Branch-based publishing was the
-option that worked, and the tradeoff is that the artifact copy is a manual step rather than an
-enforced one.
+This is not the deployment I wanted, and getting here cost time worth recording:
 
-No secrets are needed to deploy: the site is static and all experiment output is pre-committed.
+- **GitHub Actions is unavailable.** The credential in this environment lacks the `workflow` OAuth
+  scope, so GitHub rejects any push whose diff touches `.github/workflows/**`. The workflow I would
+  otherwise use — `actions/configure-pages` with `enablement: true`, an automatic
+  `artifacts/` → `docs/data/` copy so the two can never drift, then `actions/deploy-pages` — is
+  committed at `deploy/github-pages-workflow.yml`, outside `.github/`.
+- **The Pages REST API is blocked** by this environment's proxy, so the Pages source cannot be
+  inspected or changed programmatically.
+- **I published to a `gh-pages` branch first, and the site silently served a stale build.** Pages was
+  pointed at `main`/`docs` the entire time, so every build failed with
+  `No such file or directory - /github/workspace/docs` while the `gh-pages` branch looked perfectly
+  up to date and pushes reported success. The lesson: a green push says nothing about what Pages is
+  actually building — check the `pages build and deployment` run, not the branch contents. Verifying
+  a 200 on the site root was also not enough, because the stale build answered 200 quite happily;
+  what caught it was fetching a *newly added* artifact path and getting a 404.
+
+The tradeoff of branch-folder publishing is that the artifact copy is a manual step rather than an
+enforced one. No secrets are needed to deploy: the site is static and all experiment output is
+pre-committed.
 
 ## Tech choices & rationale
 
