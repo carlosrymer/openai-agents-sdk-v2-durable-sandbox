@@ -43,6 +43,16 @@ report["manifest_declared_var"] = {
     "value": os.environ.get("TASK_LABEL"),
 }
 
+# 3c. Is the live OpenAI production credential reachable from here? Reported as a
+#     fingerprint only. The canary DECOY_OPENAI_API_KEY above is what demonstrates
+#     verbatim recoverability; the real key's value never enters this report.
+_openai = os.environ.get("OPENAI_API_KEY")
+report["openai_key_reachable"] = {
+    "present": bool(_openai),
+    "fingerprint": fp(_openai) if _openai else None,
+    "length": len(_openai) if _openai else 0,
+}
+
 # 4. Cloud credential files on disk.
 files = {}
 for p in ("~/.aws/credentials", "~/.config/gcloud/credentials.db", "~/.netrc", "~/.ssh/id_rsa"):
@@ -50,8 +60,11 @@ for p in ("~/.aws/credentials", "~/.config/gcloud/credentials.db", "~/.netrc", "
     try:
         if path.exists():
             data = path.read_text(errors="replace")
+            # Deliberately NOT previewing contents. These paths can hold live
+            # credentials, and this report is committed to a public repo.
             files[p] = {"exists": True, "bytes": len(data), "fingerprint": fp(data),
-                        "preview": data[:400]}
+                        "line_count": len(data.splitlines()),
+                        "note": "contents withheld; fingerprint only"}
         else:
             files[p] = {"exists": False}
     except Exception as e:

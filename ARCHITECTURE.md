@@ -70,6 +70,9 @@ flowchart TB
 | `experiments/probe.py` | The exfiltration payload that runs *inside* the compute plane. Byte-identical across providers so the provider is the only variable | Python (embedded source string) |
 | `experiments/exp1_credential_isolation.py` | Runs the probe under `docker` and `unix_local`, both deterministically and agent-driven; diffs the results | Python, `asyncio` |
 | `experiments/exp2_durable_execution.py` | Two-phase durability test repeated over N trials: build → checkpoint → kill harness + container → rehydrate in a fresh process → finish and verify → aggregate | Python, `subprocess`, Docker |
+| `experiments/exp3_apply_patch.py` | Three-arm A/B on `apply_patch`: offered-and-free-choice, shell-only, and explicitly directed | Python, OpenAI `gpt-5.3-codex` |
+| `experiments/exp4_sandbox_memory.py` | Drives the `Memory` capability through generation on session close and read-back on a resumed session | Python, OpenAI `gpt-5.4-mini` / `gpt-5.5` |
+| `scripts/verify_no_secrets.sh` | Pre-commit gate: scans working tree and full git history for real credential values and provider-shaped patterns | Bash, grep |
 | `artifacts/*.json` | Committed run output — the auditable record and the site's only data source | JSON |
 | `site/index.html` | Single-file static presentation: comparison panels, bar comparison, run timeline, cost tables | HTML/CSS/vanilla JS |
 | `.github/workflows/deploy.yml` | Copies artifacts into `site/data/`, uploads and deploys to Pages | GitHub Actions |
@@ -163,6 +166,19 @@ OpenAI-compatible endpoint (`AGENT_PROVIDER` switches between them). The measure
 split is stated rather than smoothed over. The cost of having no OpenAI key is that `apply_patch` (a
 model-native `CustomTool`) and sandbox memory (defaults to `gpt-5.4-mini` / `gpt-5.5`) went
 untested.
+
+**Why the model roster is mixed.** No single model drove everything, and the reason is availability
+over time rather than design. The durability trials ran on Gemini 3.6 Flash; one agent-driven probe
+pass ran on Kimi K2.7 Code while Gemini credits were exhausted; `apply_patch` and sandbox memory ran
+on OpenAI models because they *cannot* run on anything else. The measurements that matter are
+model-independent: the exfiltration probe is a fixed script that calls no model, and snapshot and
+rehydration are non-model code.
+
+**Why credentials are classified rather than counted.** `common.py` separates live credentials from
+sentinel values, because this environment sets `GITHUB_TOKEN`, `GH_TOKEN` and
+`CLOUDSDK_AUTH_ACCESS_TOKEN` to the literal string `proxy-injected`. Treating a leaked placeholder
+as a stolen credential inflated my first published count. A value only counts as live if it is not a
+known sentinel and is at least 20 characters.
 
 **Why `Shell()` only, dropping the default `Filesystem()` capability.** `Filesystem` routes through
 `SandboxApplyPatchTool`, which is a `CustomTool` and therefore OpenAI-model-native. Including it with

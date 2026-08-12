@@ -1,0 +1,170 @@
+{
+  "experiment": "apply_patch",
+  "model": "gpt-5.3-codex",
+  "sandbox_image": "python:3.11-slim",
+  "why_this_needed_an_openai_key": "apply_patch is a CustomTool - a model-native tool with a grammar rather than a JSON-schema function tool - so it is only available on OpenAI models. Runs driven by Gemini or Kimi cannot use it and fall back to shell heredocs.",
+  "variants": {
+    "filesystem": {
+      "variant": "filesystem",
+      "capabilities": [
+        "Filesystem",
+        "Shell"
+      ],
+      "instructions_directed_to_use_apply_patch": false,
+      "model": "gpt-5.3-codex",
+      "error": null,
+      "turns": [
+        {
+          "turn": 0,
+          "wall_clock_s": 6.17,
+          "tool_calls": [
+            "exec_command"
+          ],
+          "total_tokens": 10770,
+          "final_output": "Done.\n\n- Created `stats.py` with `mean(xs)` that raises `ValueError` on empty input.\n- Created `test_stats.py` with the two requested assertions.\n- Ran `python3 /workspace/test_stats.py` successfully (exit code `0`, no output)."
+        },
+        {
+          "turn": 1,
+          "wall_clock_s": 6.01,
+          "tool_calls": [
+            "exec_command"
+          ],
+          "total_tokens": 11703,
+          "final_output": "Done.\n\n- Added `median(xs)` in `stats.py` for odd/even lengths and empty-list `ValueError`.\n- Extended `test_stats.py` with:\n  - `median([1,3,2]) == 2`\n  - `median([1,2,3,4]) == 2.5`\n- Ran `python3 /workspace/test_stats.py` successfully (exit code `0`, no output)."
+        },
+        {
+          "turn": 2,
+          "wall_clock_s": 6.39,
+          "tool_calls": [
+            "exec_command"
+          ],
+          "total_tokens": 12860,
+          "final_output": "Implemented and tested.\n\n- Added `stdev(xs)` (population standard deviation) to `stats.py`.\n- Extended `test_stats.py` with `assert stdev([2,4,4,4,5,5,7,9])==2.0`.\n- Ran `python3 /workspace/test_stats.py`.\n\nOutput:\n- No output (exit code `0`)."
+        }
+      ],
+      "tool_call_counts": {
+        "exec_command": 3
+      },
+      "apply_patch_calls": 0,
+      "total_tokens": 35333,
+      "wall_clock_s": 29.57,
+      "verified_correct": true
+    },
+    "shell_only": {
+      "variant": "shell_only",
+      "capabilities": [
+        "Shell"
+      ],
+      "instructions_directed_to_use_apply_patch": false,
+      "model": "gpt-5.3-codex",
+      "error": null,
+      "turns": [
+        {
+          "turn": 0,
+          "wall_clock_s": 4.91,
+          "tool_calls": [
+            "exec_command"
+          ],
+          "total_tokens": 8722,
+          "final_output": "Done.\n\n- Created `/workspace/stats.py` with `mean(xs)` that raises `ValueError` on empty input.\n- Created `/workspace/test_stats.py` with assertions for `mean([1,2,3]) == 2` and `mean([])` raising `ValueError`.\n- Ran `python3 /workspace/test_stats.py` successfully (exit code `0`, no output)."
+        },
+        {
+          "turn": 1,
+          "wall_clock_s": 7.09,
+          "tool_calls": [
+            "exec_command"
+          ],
+          "total_tokens": 9668,
+          "final_output": "Implemented and tested.\n\n- Added `median(xs)` to `/workspace/stats.py` with odd/even handling and empty-list `ValueError`.\n- Extended `/workspace/test_stats.py` with:\n  - `median([1,3,2]) == 2`\n  - `median([1,2,3,4]) == 2.5`\n- Ran `python3 /workspace/test_stats.py` successfully (exit code `0`, no output)."
+        },
+        {
+          "turn": 2,
+          "wall_clock_s": 5.99,
+          "tool_calls": [
+            "exec_command"
+          ],
+          "total_tokens": 10778,
+          "final_output": "Done.\n\nTest run output for `python3 /workspace/test_stats.py`:\n- Exit code: `0`\n- Stdout/stderr: *(no output)*"
+        }
+      ],
+      "tool_call_counts": {
+        "exec_command": 3
+      },
+      "apply_patch_calls": 0,
+      "total_tokens": 29168,
+      "wall_clock_s": 29.68,
+      "verified_correct": true
+    },
+    "filesystem_directed": {
+      "variant": "filesystem_directed",
+      "capabilities": [
+        "Filesystem",
+        "Shell"
+      ],
+      "instructions_directed_to_use_apply_patch": true,
+      "model": "gpt-5.3-codex",
+      "error": null,
+      "turns": [
+        {
+          "turn": 0,
+          "wall_clock_s": 7.84,
+          "tool_calls": [
+            "apply_patch",
+            "exec_command"
+          ],
+          "total_tokens": 16261,
+          "final_output": "Done.\n\n- Created `stats.py` with `mean(xs)` that returns arithmetic mean and raises `ValueError` for empty input.\n- Created `test_stats.py` with assertions for `mean([1,2,3]) == 2` and `mean([])` raising `ValueError`.\n- Ran `python3 /workspace/test_stats.py` successfully (exit code `0`, no output)."
+        },
+        {
+          "turn": 1,
+          "wall_clock_s": 14.08,
+          "tool_calls": [
+            "apply_patch",
+            "apply_patch",
+            "exec_command"
+          ],
+          "total_tokens": 23574,
+          "final_output": "Done.\n\n- Added `median(xs)` to `stats.py` with odd/even handling and empty-list `ValueError`.\n- Extended `test_stats.py` with:\n  - `median([1,3,2]) == 2`\n  - `median([1,2,3,4]) == 2.5`\n- Ran `python3 /workspace/test_stats.py` successfully (exit code `0`)."
+        },
+        {
+          "turn": 2,
+          "wall_clock_s": 10.2,
+          "tool_calls": [
+            "apply_patch",
+            "apply_patch",
+            "exec_command"
+          ],
+          "total_tokens": 25703,
+          "final_output": "Added `stdev(xs)` (population standard deviation) and updated tests.\n\nTest run output for `python3 /workspace/test_stats.py`:\n\n- Exit code: `0`\n- Output: *(no output)*"
+        }
+      ],
+      "tool_call_counts": {
+        "apply_patch": 5,
+        "exec_command": 3
+      },
+      "apply_patch_calls": 5,
+      "total_tokens": 65538,
+      "wall_clock_s": 42.46,
+      "verified_correct": true
+    }
+  },
+  "comparison": {
+    "apply_patch_offered_but_unused_when_free_choice": true,
+    "apply_patch_used_when_directed": true,
+    "apply_patch_calls_free_choice": 0,
+    "apply_patch_calls_directed": 5,
+    "directed_tokens": 65538,
+    "directed_verified": true,
+    "apply_patch_used": false,
+    "apply_patch_call_count": 0,
+    "filesystem_tokens": 35333,
+    "shell_only_tokens": 29168,
+    "token_delta": 6165,
+    "filesystem_seconds": 29.57,
+    "shell_only_seconds": 29.68,
+    "both_verified_correct": true,
+    "filesystem_verified": true,
+    "shell_only_verified": true
+  },
+  "generated_at": "2026-08-12T15:30:43Z"
+}

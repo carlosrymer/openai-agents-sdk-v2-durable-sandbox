@@ -28,12 +28,19 @@ release. The results are not close:
 
 | | `docker` (isolated) | `unix_local` (naive) |
 |---|---|---|
-| Environment variables visible | **9** | **144** |
-| Real harness secrets leaked | **0** | **5** |
-| Decoy secrets recovered verbatim | 0 / 3 | **3 / 3** |
+| Environment variables visible | **9** | **150** |
+| Live credentials leaked | **0** | **5** (incl. `OPENAI_API_KEY`) |
+| Decoy secrets recovered verbatim | 0 / 4 | **4 / 4** |
 | Harness source tree visible | No | **Yes** |
 | Live authenticated API call with a stolen key | Not possible | **HTTP 200** |
 | Variable the manifest *did* declare | Delivered | Delivered |
+
+I re-ran this after a live production `OPENAI_API_KEY` was added to the harness environment — a
+materially more sensitive credential than anything present the first time. **The result held.**
+`docker` still exposed nothing; `unix_local` now leaks the OpenAI key as well. Published evidence
+uses a `DECOY_OPENAI_API_KEY` canary: the real key appears in the artifacts only as a SHA-256
+fingerprint, never as a value, and I deliberately did not make an API call with it from inside the
+sandbox even though doing so would have "proven" the leak harder.
 
 Those 9 variables under `docker` are the 8 the base image ships plus the single `TASK_LABEL` the
 manifest declared — so the permitted channel works while the host environment does not cross at all.
@@ -98,6 +105,53 @@ checkpointing. Every one of my trials checkpointed cleanly at a turn boundary, w
 result. A crash between checkpoints loses everything since the last one, and I did not test killing
 mid-turn.
 
+### A correction to my own earlier numbers
+
+An earlier version of this write-up counted 5 leaked credentials including `GITHUB_TOKEN`,
+`GH_TOKEN` and `CLOUDSDK_AUTH_ACCESS_TOKEN`. Those three are set by this environment to the literal
+sentinel string `proxy-injected`. A leaked placeholder is not a stolen credential, and counting them
+inflated the finding. The probe now classifies sentinel values separately from live ones, and every
+count above includes only credentials that actually authenticate. The direction of the result never
+changed — `unix_local` leaked genuinely live keys both times, and the live exfiltration call
+succeeded both times — but the magnitude did, so I am flagging it rather than quietly editing it.
+
+### What a live OpenAI key unlocked
+
+Two capabilities were previously untestable because they are OpenAI-model-native. Both are now
+tested.
+
+**`apply_patch` works, but `gpt-5.3-codex` doesn't want it.** It is a `CustomTool` — a model-native
+tool with a grammar rather than a JSON-schema function tool — which is why no Gemini or Kimi run can
+reach it. Same edit-heavy task, three arms, one variable changed at a time:
+
+| Variant | Tools | `apply_patch` calls | Tokens | Result |
+|---|---|---|---|---|
+| Shell only | `Shell` | — | 29,168 | correct |
+| Filesystem available, free choice | `Filesystem + Shell` | **0** | 35,333 | correct |
+| Filesystem, told to use `apply_patch` | `Filesystem + Shell` | **5** | 65,538 | correct |
+
+Given a free choice the model reached for the shell every single time across three edit-heavy turns.
+I verified the tool really was registered and offered (`SandboxApplyPatchTool`, name `apply_patch`),
+so this is the model declining it rather than a wiring bug. Told explicitly to use it, it made 5
+successful calls and still produced correct code — so the tool does what the docs say.
+
+The cost runs the other way from what I expected. Merely *offering* the filesystem tools cost
+**6,165 extra tokens** over shell-only for an identical outcome, and actually using `apply_patch`
+cost **2.2×** the shell-only run. One task, one model, n=1 per arm — a direction, not a measurement.
+
+**Sandbox memory runs end to end, and the memory is specific.** The `Memory` capability defaults to
+`gpt-5.4-mini` for extraction and `gpt-5.5` for consolidation, so it cannot run without those
+models. I gave an agent a task where the obvious command fails and the real one is documented only
+in the repo, closed the session to trigger generation, then resumed and checked what came back:
+
+- Generation ran on session close and took **89.4 s** — slow enough to matter if you close sessions often.
+- It wrote 7 artifacts under `memories/`, including `MEMORY.md` and `memory_summary.md`.
+- A later resumed session read the summary back into the agent's instructions.
+- It captured the actual lesson — the `--strict` flag requirement and the exit-code-2 refusal — not a vague paraphrase. The generated text is committed verbatim in `artifacts/sandbox_memory.json` so the quality can be judged rather than taken on trust.
+
+I am not claiming memory made the agent *better*. Showing that needs a control arm and many more
+runs than this budget allows.
+
 ### What surprised me
 
 I expected the interesting parts of this feature to live behind OpenAI's hosted API, and to end up
@@ -146,15 +200,17 @@ The two agree.
   state the split than quietly present one model. This is valid for what I am measuring —
   the sandbox shell tool is an ordinary `FunctionTool` and nothing in the harness/compute boundary
   depends on which model is talking — but it does mean two advertised capabilities went untested.
-- **`apply_patch` was not exercised.** It is a model-native `CustomTool`, so the Codex-style
-  filesystem-editing path needs an OpenAI model. My agent used shell heredocs instead. This is the
-  one sandbox capability I could not reach. Testing it needs an OpenAI key and a GPT-5-series model.
-- **Sandbox memory was not exercised** — it defaults to `gpt-5.4-mini` / `gpt-5.5` for its two
-  extraction phases.
-- **Hosted sandbox providers were not tested.** Blaxel, Cloudflare, Daytona, E2B, Modal, Runloop and
-  Vercel each need vendor keys I do not have. Given that Claim 1's whole result is "isolation varies
-  by provider," I specifically cannot tell you whether those behave like `docker` or like
-  `unix_local`.
+- **`apply_patch` and sandbox memory are now tested** (see above); both are n=1 per arm on a single
+  task, so they show direction rather than settle anything.
+- **The durability trials still ran on Gemini.** I did not re-run the 4-trial suite after the OpenAI
+  key arrived — snapshot and rehydration are non-model code, so the re-spend was not justified. The
+  durability numbers therefore describe a Gemini-driven agent.
+- **`gpt-5.1-codex-mini` is listed by `/v1/models` but 404s on the Responses API** for this key, so
+  the `apply_patch` runs used `gpt-5.3-codex`.
+- **Hosted sandbox providers remain untested, and an OpenAI key does not change that.** Blaxel,
+  Cloudflare, Daytona, E2B, Modal, Runloop and Vercel each authenticate against their *own* vendor
+  APIs and need their own keys, none of which are present. This is the gap I would most want closed,
+  because Claim 1's whole result is that isolation varies by provider.
 - **Isolation is about credentials, not the network.** The Docker sandbox had unrestricted outbound
   internet the whole time. It had nothing to authenticate with, but a sandbox that can reach the
   internet can still exfiltrate whatever is in its own workspace.
@@ -174,20 +230,43 @@ The two agree.
 
 Deliberately tiny, and worth stating since these runs cost real money:
 
-| Run | Model | Tokens | Notes |
+| Run | Provider / model | Measured tokens | Notes |
 |---|---|---|---|
-| Exp 1 — deterministic probe | none | 0 | A fixed script. The primary security measurement calls no model at all. |
-| Exp 1 — agent-driven probe (×2) | Kimi K2.7 Code | 26,715 | Capped at 1,200 max tokens per response |
-| Exp 2 — durability, 6 turns × 4 trials | Gemini 3.6 Flash | ~355,700 | 37,623 mean before the kill, 51,304 mean after |
+| Exp 1 — deterministic probe | **none** | **0** | A fixed script. The primary security measurement calls no model at all. |
+| Exp 1 — agent-driven probe | Moonshot · Kimi K2.7 Code | 26,715 | Capped at 1,200 max tokens per response |
+| Exp 1 — agent-driven probe (re-runs) | Google · Gemini 3.6 Flash | ~20,000 | Two later re-runs after fixes |
+| Exp 2 — durability, 6 turns × 4 trials | Google · Gemini 3.6 Flash | ~355,700 | 37,623 mean before the kill, 51,304 mean after |
+| Exp 3 — `apply_patch`, 3 arms (plus one discarded 2-arm run) | OpenAI · `gpt-5.3-codex` | 189,142 | 130,039 final + 59,103 discarded |
+| Exp 4 — sandbox memory, agent turn | OpenAI · `gpt-5.3-codex` | 16,134 | |
+| Exp 4 — memory pipeline | OpenAI · `gpt-5.4-mini` + `gpt-5.5` | **not instrumented** | The SDK runs these internally; my harness does not see their usage |
 
-Token counts are measured directly from the SDK's usage accounting and are exact. I am not quoting
-dollar figures per run because the Moonshot account is shared with other work, so the balance delta
-is not attributable to this project alone — though the balance did not move measurably in the
-minutes immediately around the Kimi runs. The durability trials ran on Gemini.
+Token counts come from the SDK's own usage accounting and are exact, except where marked. **OpenAI:
+~205,300 measured tokens on `gpt-5.3-codex`, plus an uninstrumented memory pipeline.** I cannot
+quote a dollar figure: this API key lacks the `api.usage.read` scope, so
+`/v1/organization/costs` returns 403. **Moonshot: 26,715 tokens**, on an account shared with other
+work, so its balance delta is not attributable to this project alone. **Gemini: ~375,700 tokens**,
+almost all of it the durability trials.
 
 The expensive part of this build was reading the SDK source, not calling models. The headline
 security result — the isolated-vs-naive contrast — cost nothing at all, because the probe that
 produces it is a fixed script.
+
+## Handling live credentials in this repo
+
+This repo contains a working credential-exfiltration probe, and the environment it runs in holds
+live production keys. Two safeguards, because the probe's whole job is to find secrets:
+
+- **`scripts/verify_no_secrets.sh`** scans the working tree *and* full git history for the exact
+  value of every credential in the environment, plus provider-shaped patterns
+  (`sk-…`, `AIza…`, `ghp_…`, `AKIA…`). I run it before every commit. It self-tests: planting a real
+  key makes it fail, removing it makes it pass.
+- **The probe never records a secret's value.** Live credentials are reported as SHA-256
+  fingerprints only. The `DECOY_*` canaries are what get quoted verbatim, and they are deliberately
+  shaped so they cannot be mistaken for real vendor keys or trip secret scanners.
+
+One thing I got wrong and fixed: the first version of the verification script *printed the matched
+string*, which meant a successful catch dumped a live key into the run log — exactly what the script
+exists to prevent. It now reports file paths only, with contents withheld.
 
 ## Docs
 

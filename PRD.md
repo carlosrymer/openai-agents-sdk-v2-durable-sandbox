@@ -104,7 +104,7 @@ does.
 the compute plane saw 9 environment variables — the 8 the base image ships plus the single one the
 manifest declared — zero real harness secrets, and zero of three decoys;
 the harness source tree was invisible and the exfiltration call could not be attempted for lack of
-any credential. Under `unix_local` the same probe saw 144 variables, leaked 5 real secrets and all 3
+any credential. Under `unix_local` the same probe saw 150 variables, leaked 5 real secrets and all 3
 decoys verbatim, could read the harness source, and **successfully made a real authenticated API
 call from inside the compute plane (HTTP 200), retrieving live account data with the stolen
 key**.
@@ -127,12 +127,23 @@ snapshot tarball rather than a surviving Docker volume. The qualifiers: snapshot
 the container at the same clean turn boundary — I did not test killing mid-tool-call or during the
 snapshot itself.
 
-**Where it fell short of the plan.** Two advertised capabilities were unreachable without an OpenAI
-key and are reported untested rather than papered over: `apply_patch` filesystem editing (a
-model-native `CustomTool`) and sandbox memory generation (defaults to `gpt-5.4-mini` / `gpt-5.5`).
-Testing either needs an OpenAI key and a GPT-5-series model. Seven hosted sandbox providers also went
-untested — which stings precisely because Claim 1's result is that provider choice is what decides
-the outcome.
+**The result held under a live production credential.** The isolation experiment was re-run after a
+production `OPENAI_API_KEY` entered the harness environment. `docker` still exposed nothing;
+`unix_local` leaked the OpenAI key along with everything else. Published evidence uses a canary; the
+real key appears only as a fingerprint.
+
+**Two previously-untestable capabilities are now covered.** `apply_patch` works when the model is
+told to use it (5 successful calls, correct output) but `gpt-5.3-codex` never chose it
+spontaneously, preferring the shell across three edit-heavy turns — and offering it cost 6,165 extra
+tokens for an identical result, while using it cost 2.2×. Sandbox memory runs end to end: generation
+fires on session close (89.4 s), writes 7 artifacts, is read back into a resumed session, and
+captured the specific project convention rather than a paraphrase.
+
+**Where it still falls short.** Seven hosted sandbox providers remain untested because each needs
+its own vendor key — which stings precisely because Claim 1's result is that provider choice decides
+the outcome. The durability suite was not re-run on an OpenAI model. And I corrected my own earlier
+leak count downward after discovering three of the "leaked credentials" were the sentinel string
+`proxy-injected`.
 
 Secondary criteria, all met: artifacts committed and auditable; the site reads them rather than
 hardcoding numbers; the page is responsive and dark/light aware; no unfilled placeholders in the docs.

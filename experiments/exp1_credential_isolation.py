@@ -181,10 +181,13 @@ def summarize(docker_rep: dict, unix_rep: dict, harness_fps: dict) -> dict:
     d, u = row(docker_rep), row(unix_rep)
     return {
         "harness_secret_fingerprints": harness_fps,
+        "harness_placeholder_credentials": common.placeholder_credentials(),
         "isolated": d,
         "naive": u,
         "verdict": {
             "docker_leaked_real_secrets": len(d["real_harness_secrets_leaked"]),
+            "openai_key_reachable_docker": docker_rep.get("openai_key_reachable", {}).get("present"),
+            "openai_key_reachable_unix_local": unix_rep.get("openai_key_reachable", {}).get("present"),
             "unix_local_leaked_real_secrets": len(u["real_harness_secrets_leaked"]),
             "docker_exfil_succeeded": bool(d["live_exfiltration"].get("succeeded")),
             "unix_local_exfil_succeeded": bool(u["live_exfiltration"].get("succeeded")),
